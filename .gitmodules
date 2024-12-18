@@ -1,0 +1,6 @@
+[submodule "src/swagger4laz"]
+	path = src/swagger4laz
+	url = https://github.com/pedroaaraujo/swagger4laz
+[submodule "src/deltamodel"]
+	path = src/deltamodel
+	url = https://github.com/pedroaaraujo/deltamodel
