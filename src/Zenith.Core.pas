@@ -13,19 +13,6 @@ procedure ConfigureApplication(App: TCustomHTTPApplication);
 
 implementation
 
-procedure ApplicationOnShowRequestException(AResponse: TResponse; AnException: Exception; var handled: boolean);
-begin
-  handled := True;
-end;
-
-procedure ConfigureApplication(App: TCustomHTTPApplication);
-begin
-  App.OnShowRequestException := @ApplicationOnShowRequestException;
-  ZenithLogger := TZenithLogger.Create(
-    GetEnvVariable('ZENITH_LOGFILE')
-  );
-end;
-
 procedure HandleExcept(E: Exception; AReq: TRequest; AResp: TResponse);
 var
   Json: TJSONObject;
@@ -149,6 +136,17 @@ begin
   finally
     Json.Free;
   end;
+end;
+
+procedure ApplicationOnShowRequestException(AResponse: TResponse; AnException: Exception; var handled: boolean);
+begin
+  handled := True;
+  HandleExcept(AnException, AResponse.Request, AResponse);
+end;
+
+procedure ConfigureApplication(App: TCustomHTTPApplication);
+begin
+  App.OnShowRequestException := @ApplicationOnShowRequestException;
 end;
 
 end.
