@@ -5,16 +5,56 @@ unit Todo.Model;
 interface
 
 uses
-  Classes, SysUtils, DeltaModel;
+  Classes, SysUtils, DeltaModel, DeltaValidator;
 
 type
-  TTodo = class(TDeltaModel)
+
+  { TTodoInsert }
+
+  TTodoInsert = class(TDeltaModel)
+  private
+    Fdescription: string;
   published
-    id: Integer;
-    description: string;
+    property description: string read Fdescription write Fdescription;
+  public
+    procedure Validate; virtual;
+  end;
+
+  TTodo = class(TTodoInsert)
+  private
+    Fdone: Boolean;
+  published
+    property done: Boolean read Fdone write Fdone;
+  public
+    procedure Validate; override;
+  end;
+
+  { TTodoResponse }
+
+  TTodoResponse = class(TTodo)
+  private
+    Fid: Integer;
+  published
+    property id: Integer read Fid write Fid;
   end;
 
 implementation
+
+{ TTodoInsert }
+
+procedure TTodoInsert.Validate;
+begin
+  Validator.Clear;
+
+  Validator
+    .AddField('Todo.Description', Self.description)
+    .AddValidator(TValidatorItemMinLength.Create(2));
+end;
+
+procedure TTodo.Validate;
+begin
+  inherited Validate;
+end;
 
 end.
 
