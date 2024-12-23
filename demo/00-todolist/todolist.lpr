@@ -7,24 +7,11 @@ uses
   Classes,
   Sysutils,
   fphttpapp,
-  Zenith.Core,
-  Zenith.Env,
-  swagger4laz;
+  Zenith.App, Todo.Model, Todo.Route;
 
 begin
-  Application.Title := 'TodoList';
-  Application.Port := StrToIntDef(GetEnvVariable('ZENITH_PORT'), 8080);
-  Application.Threaded := False;
-
-  Application.Initialize;
-
-  ConfigureApplication(Application);
-  SwaggerRouter
-    .SetTitle(Application.Title)
-    .SetDescription('API reference')
-    .SetVersion('1.0.0.0')
-    .SetDocRoute('/docs');
-
-  Application.Run;
+  ZenithApp
+    .SetTitle('ToDo List')
+    .Run;
 end.
 

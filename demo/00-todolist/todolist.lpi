@@ -28,6 +28,19 @@
         <Filename Value="todolist.lpr"/>
         <IsPartOfProject Value="True"/>
       </Unit>
+      <Unit>
+        <Filename Value="../../src/zenith.app.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Zenith.App"/>
+      </Unit>
+      <Unit>
+        <Filename Value="Todo.Model.pas"/>
+        <IsPartOfProject Value="True"/>
+      </Unit>
+      <Unit>
+        <Filename Value="Todo.Route.pas"/>
+        <IsPartOfProject Value="True"/>
+      </Unit>
     </Units>
   </ProjectOptions>
   <CompilerOptions>
