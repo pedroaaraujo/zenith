@@ -6,6 +6,7 @@ uses
   {$ENDIF}
   Classes,
   Sysutils,
+  SQLite3Conn,
   fphttpapp,
   Zenith.App, Todo.Model, Todo.Route;
 

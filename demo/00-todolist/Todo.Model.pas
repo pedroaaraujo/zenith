@@ -17,7 +17,7 @@ type
   published
     property description: string read Fdescription write Fdescription;
   public
-    procedure Validate; virtual;
+    procedure Validate; override;
   end;
 
   TTodo = class(TTodoInsert)

@@ -60,6 +60,28 @@ begin
   end;
 end;
 
+procedure CreateTodo(ARequest: TRequest; AResponse: TResponse);
+var
+  Resp: TTodoResponse;
+  Req: TTodoInsert;
+begin
+  Req := TTodoInsert.Create;
+  Resp := TTodoResponse.Create;
+  try
+    Req.FromJson(ARequest.Content);
+
+    Resp.id := 1;
+    Resp.description := Req.description;
+    Resp.done := false;
+
+    AResponse.Code := StatusCreated;
+    AResponse.Content := Resp.ToJson;
+  finally
+    Resp.Free;
+    Req.Free;
+  end;
+end;
+
 class procedure TTodoRouter.Register;
 begin
   Router
@@ -72,6 +94,12 @@ begin
     .AddTags('ToDo')
     .AddPathParam('id', True)
     .AddResponse(StatusOK, 'Get ToDo by Id', TTodoResponse.SwaggerSchema());
+
+  Router
+    .Post('/todo/', @CreateTodo)
+    .AddTags('ToDo')
+    .SetBodyContent(TTodoInsert.SwaggerSchema())
+    .AddResponse(StatusCreated, 'CreateTodo', TTodoResponse.SwaggerSchema());
 end;
 
 initialization
