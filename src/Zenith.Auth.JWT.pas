@@ -1,44 +1,36 @@
-unit Zenith.Auth;
+unit Zenith.Auth.JWT;
 
 {$mode ObjFPC}{$H+}
 
 interface
 
 uses
-  Classes, SysUtils, server.funcoes, server.classes, base64, ufuncoes,
-  fpjson, StrUtils, server.exceptions, DateUtils;
+  Classes, SysUtils, base64, fpjson, StrUtils, DateUtils, fgl,
+  Zenith.Hash, Zenith.Env, Zenith.Exceptions;
 
 type
-  { TBasicAuthorization }
 
-  TBasicAuthorization = class
-  private
-    FAuth: string;
-    FPassword: string;
-    FUser: string;
-    procedure Extract;
-  public
-    property User: string read FUser;
-    property Password: string read FPassword;
-    constructor Create(Auth: string);
-  end;
+  TDictionay = specialize TFPGMap<string, Variant>;
 
   { TPayLoad }
 
-  TPayLoad = class(TCadastro)
+  TPayLoad = class
   private
     Fexp: Int64;
     fiat: Int64;
-    FIdEmpresa: Integer;
-    FIdPerfilUsuario: Integer;
-    FIdUsuario: Integer;
+    Values: TDictionay;
+    function GetCustomValues(const Name: string): Variant;
     function Getiat: Int64;
-  published
+  public
     property exp: Int64 read Fexp write Fexp;
     property iat: Int64 read Getiat write fiat;
-    property IdEmpresa: Integer read FIdEmpresa write FIdEmpresa;
-    property IdUsuario: Integer read FIdUsuario write FIdUsuario;
-    property IdPerfilUsuario: Integer read FIdPerfilUsuario write FIdPerfilUsuario;
+    property CustomValues[Name: string]: Variant read GetCustomValues;
+
+    function ToJson: string;
+    procedure FromJson(const JsonStr: string);
+
+    procedure AfterConstruction; override;
+    procedure BeforeDestruction; override;
   end;
 
   { TJWT }
@@ -50,9 +42,10 @@ type
     class function ValidadeToken(Token: string): TPayLoad;
   end;
 
-  { TBearerAuthentication }
 
-  TBearerAuthentication = class
+  { TJWTAuthentication }
+
+  TJWTAuthentication = class
   private
     FPayload: TPayLoad;
     FAuth: string;
@@ -66,45 +59,8 @@ type
 
 implementation
 
-{ TBasicAuthorization }
-
-procedure TBasicAuthorization.Extract;
-var
-  SL: TStringList;
-begin
-  if FAuth.IsEmpty then
-    Exit;
-
-  SL := TStringList.Create;
-  try
-    SL.Delimiter := ':';
-    SL.StrictDelimiter := True;
-    SL.DelimitedText := DecodeStringBase64(FAuth);
-    FUser := Sl.Strings[0];
-    FPassword := Sl.Strings[1];
-  finally
-    SL.Free;
-  end;
-end;
-
-constructor TBasicAuthorization.Create(Auth: string);
-begin
-  FAuth := Auth.Replace('Basic ', EmptyStr, [rfIgnoreCase]);
-  Extract;
-end;
-
-{ TPayLoad }
-
-function TPayLoad.Getiat: Int64;
-begin
-  if fiat = 0 then
-  begin
-    fiat := DateTimeToUnix(Now, False);
-  end;
-  result := fiat
-end;
-
-{ TJWT }
+const
+  JWT_ENV_VARIABLE = 'JWT_SECRET';
 
 function EncodeStringBase64UrlSafe(const AStr: string): string;
 begin
@@ -126,18 +82,98 @@ begin
   Result := DecodeStringBase64(TempStr);
 end;
 
+{ TPayLoad }
+
+function TPayLoad.GetCustomValues(const Name: string): Variant;
+begin
+  Result := Values.KeyData[Name];
+end;
+
+function TPayLoad.Getiat: Int64;
+begin
+  if fiat = 0 then
+  begin
+    fiat := DateTimeToUnix(Now, False);
+  end;
+  result := fiat
+end;
+
+function TPayLoad.ToJson: string;
+var
+  Json: TJSONObject;
+  I: Integer;
+begin
+  Json := TJSONObject.Create;
+  try
+    Json.Add('exp', Fexp);
+    Json.Add('iat', Getiat);
+
+    for I := 0 to Pred(Values.Count) do
+    begin
+      Json.Add(Values.Keys[I], Values.Data[I]);
+    end;
+
+    Result := Json.AsJSON;
+  finally
+    Json.Free;
+  end;
+end;
+
+procedure TPayLoad.FromJson(const JsonStr: string);
+var
+  Json: TJSONObject;
+  I: Integer;
+  Key: string;
+begin
+  Json := GetJSON(JsonStr) as TJSONObject;
+  try
+    if Json.Find('exp') <> nil then
+      Fexp := Json.Integers['exp'];
+
+    if Json.Find('iat') <> nil then
+      fiat := Json.Integers['iat'];
+
+    Values.Clear;
+    for I := 0 to Pred(Json.Count) do
+    begin
+      Key := Json.Names[I];
+
+      if (Key <> 'exp') and (Key <> 'iat') then
+      begin
+        Values.Add(Key, Json.Get(Key));
+      end;
+    end;
+  finally
+    Json.Free;
+  end;
+end;
+
+procedure TPayLoad.AfterConstruction;
+begin
+  inherited AfterConstruction;
+  Values := TDictionay.Create;
+end;
+
+procedure TPayLoad.BeforeDestruction;
+begin
+  inherited BeforeDestruction;
+  Values.Free;
+end;
+
+{ TJWT }
+
 class function TJWT.GenerateToken(Payload: TPayLoad): string;
 var
   Body, Key: string;
 begin
-  Key := Configuracao('CRYPT_PWD');
+  Key := Zenith.Env.GetEnvVariable(JWT_ENV_VARIABLE);
 
   Body :=
     EncodeStringBase64UrlSafe('{"alg": "HS256", "typ": "JWT"}')  + '.' +
     EncodeStringBase64UrlSafe(Payload.ToJson);
   Result :=
     Body + '.' +
-    EncodeStringBase64UrlSafe(HMAC_SHA256(Key, Body));
+    EncodeStringBase64UrlSafe(HMACSHA256(Key, Body));
 end;
 
 class function TJWT.GenerateJson(Payload: TPayLoad): string;
@@ -167,7 +203,7 @@ var
   Key: string;
 begin
   Result := nil;
-  Key := Configuracao('CRYPT_PWD');
+  Key := Zenith.Env.GetEnvVariable(JWT_ENV_VARIABLE);
   try
     /// Segments
     HeaderEncoded := ExtractWord(1, Token, ['.']);
@@ -175,7 +211,7 @@ begin
     SignatureEncoded := ExtractWord(3, Token, ['.']);
 
     /// Check signature
-    SignatureDecoded := EncodeStringBase64UrlSafe(HMAC_SHA256(Key, HeaderEncoded + '.' + PayLoadEncoded));
+    SignatureDecoded := EncodeStringBase64UrlSafe(HMACSHA256(Key, HeaderEncoded + '.' + PayLoadEncoded));
     if (SignatureDecoded <> SignatureEncoded) then
     begin
       raise Exception.Create('Signature verification failed');
@@ -202,15 +238,15 @@ begin
   end;
 end;
 
-{ TBearerAuthentication }
+{ TJWTAuthentication }
 
-procedure TBearerAuthentication.SetPayload(AValue: TPayLoad);
+procedure TJWTAuthentication.SetPayload(AValue: TPayLoad);
 begin
   if FPayload = AValue then Exit;
   FPayload := AValue;
 end;
 
-procedure TBearerAuthentication.Validate;
+procedure TJWTAuthentication.Validate;
 var
   Exp, ANow: TDateTime;
 begin
@@ -218,28 +254,28 @@ begin
 
   if FPayload = nil then
   begin
-    raise EUnauthorized.Create('Token inválido');
+    raise EUnauthorized.Create('Invalid Token');
   end;
 
   Exp := UnixToDateTime(Payload.exp, False);
   ANow := Now;
   if Exp < ANow then
   begin
-    raise EUnauthorized.Create('Token expirado');
+    raise EUnauthorized.Create('Expired Token');
   end;
 end;
 
-constructor TBearerAuthentication.Create(Auth: string);
+constructor TJWTAuthentication.Create(Auth: string);
 begin
   FAuth := Auth.Replace('Bearer ', EmptyStr, [rfIgnoreCase]);
 end;
 
-destructor TBearerAuthentication.Destroy;
+destructor TJWTAuthentication.Destroy;
 begin
-  FPayload.Free;
+  if FPayload <> nil then
+    FPayload.Free;
+
   inherited Destroy;
 end;
 
-
 end.
-
