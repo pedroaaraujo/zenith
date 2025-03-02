@@ -5,7 +5,7 @@ unit Zenith.Core;
 interface
 
 uses
-  Classes, SysUtils, custhttpapp, HTTPDefs, fpjson,
+  Classes, SysUtils, custhttpapp, HTTPDefs, DeltaValidator, fpjson,
 
   Zenith.Exceptions, Zenith.Log, Zenith.Consts, Zenith.Types, Zenith.Env;
 
@@ -76,6 +76,13 @@ begin
         Title := 'Limite de requisições atingido.';
       end
       else
+      if E is EConflict then
+      begin
+        AResp.Code := StatusConflict;
+        Error := 'CONFLICT';
+        Title := 'Identificado conflito nos dados informados.';
+      end
+      else
       if E is EServerError then
       begin
         AResp.Code := StatusInternalServerError;
@@ -83,7 +90,7 @@ begin
         Title := 'Não foi possível executar a operação.';
       end
       else
-      if E is EBadRequest then
+      if (E is EBadRequest) then
       begin
         AResp.Code := StatusBadRequest;
         Error := 'VALIDATION_ERROR';
@@ -104,6 +111,24 @@ begin
         Utf8ToAnsi((E as HTTPException).Message),
         {$ELSE}
         (E as HTTPException).Message,
+        {$ENDIF}
+        EmptyStr
+      );
+    end
+    else
+    if (E is EDeltaValidation) then
+    begin
+      AResp.Code := StatusBadRequest;
+      Error := 'VALIDATION_ERROR';
+      Title := 'Falha na validação de regras de negócio.';
+      AResp.Contents.Text := TJsonError.ToJson(
+        Error,
+        Title,
+        AResp.Code,
+        {$IFDEF WINDOWS}
+        Utf8ToAnsi((E as EDeltaValidation).Message),
+        {$ELSE}
+        (E as EDeltaValidation).Message,
         {$ENDIF}
         EmptyStr
       );

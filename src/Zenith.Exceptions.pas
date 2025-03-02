@@ -11,6 +11,7 @@ type
   HTTPException = class(Exception);
 
   EValidation = class(HTTPException);
+  EConflict = class(HTTPException);
   EMissingRequiredField = class(HTTPException);
   EUnknowError = class(HTTPException);
   EUnauthorized = class(HTTPException);

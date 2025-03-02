@@ -14,13 +14,13 @@ type
   TJsonError = class
   public
     class function ToJson(AType, ATitle: string; AStatus: Integer; ADetail: string = '';
-      AInstance: string = ''): string;
+      AInstance: string = ''): RawByteString;
   end;
 
 implementation
 
 class function TJsonError.ToJson(AType, ATitle: string; AStatus: Integer;
-  ADetail: string; AInstance: string): string;
+  ADetail: string; AInstance: string): RawByteString;
 var
   Json: TJSONObject;
 begin
