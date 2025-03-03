@@ -233,6 +233,12 @@ end;
 
 class function TJWT.OpenAPISchema: string;
 begin
+  {A data retornada no exemplo é o momento em que este bloco foi escrito.
+   Eu estava na fazenda, em um domingo de carnaval, bebendo uma cerveja
+   enquanto aguardava o almoço.
+
+   Se você estiver lendo este comentário, lhe desejo toda felicidade e um fraterno abraço.
+  }
   Result :=
     '{' +
     '  "type": "object",' +
@@ -270,6 +276,11 @@ begin
   Result := nil;
   Key := Zenith.Env.GetEnvVariable(JWT_ENV_VARIABLE);
   try
+    if Token.IsEmpty then
+    begin
+      raise Exception.Create('Token is empty');
+    end;
+
     /// Segments
     HeaderEncoded := ExtractWord(1, Token, ['.']);
     PayLoadEncoded := ExtractWord(2, Token, ['.']);
@@ -285,6 +296,11 @@ begin
     HeaderDecoded := DecodeStringBase64UrlSafe(HeaderEncoded);
     HeaderJson := GetJSON(HeaderDecoded);
 
+    if HeaderJson = nil then
+    begin
+      raise Exception.Create('Cannot read header');
+    end;
+
     if (HeaderJson.FindPath('.alg').AsString = EmptyStr)
       or (HeaderJson.FindPath('.alg').AsString <> 'HS256') then
     begin
@@ -298,7 +314,7 @@ begin
   except
     on E: Exception do
     begin
-      raise EUnauthorized.CreateFmt('JWT invalid. %s', [E.Message]);
+      raise EUnauthorized.CreateFmt('Invalid JWT - %s', [E.Message]);
     end;
   end;
 end;
