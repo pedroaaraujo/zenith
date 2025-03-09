@@ -107,11 +107,7 @@ begin
         Error,
         Title,
         AResp.Code,
-        {$IFDEF WINDOWS}
-        Utf8ToAnsi((E as HTTPException).Message),
-        {$ELSE}
         (E as HTTPException).Message,
-        {$ENDIF}
         EmptyStr
       );
     end
@@ -125,24 +121,18 @@ begin
         Error,
         Title,
         AResp.Code,
-        {$IFDEF WINDOWS}
-        Utf8ToAnsi((E as EDeltaValidation).Message),
-        {$ELSE}
         (E as EDeltaValidation).Message,
-        {$ENDIF}
         EmptyStr
       );
     end
     else
     begin
       AResp.Code := StatusInternalServerError;
-      AResp.Contents.Add(
-        TJsonError.ToJson(
-          'SERVER_ERROR',
-          'Não foi possível executar a operação.',
-          AResp.Code,
-          E.Message
-        )
+      AResp.Contents.Text := TJsonError.ToJson(
+        'SERVER_ERROR',
+        'Não foi possível executar a operação.',
+        AResp.Code,
+        E.Message
       );
     end;
 

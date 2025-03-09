@@ -28,7 +28,7 @@ begin
   try
     Json.Strings['type'] := AType;
     Json.Strings['title'] := ATitle;
-    Json.Int64s['status'] := AStatus;
+    Json.Integers['status'] := AStatus;
 
     if not ADetail.IsEmpty then
       Json.Strings['detail'] := ADetail;
@@ -36,7 +36,11 @@ begin
     if not AInstance.IsEmpty then
       Json.Strings['instance'] := AInstance;
 
+    {$IFDEF MSWINDOWS}
+    Result := Utf8ToAnsi(UTF8Encode(Json.AsJSON));
+    {$ELSE}
     Result := Json.AsJSON;
+    {$ENDIF}
   finally
     Json.Free;
   end;
