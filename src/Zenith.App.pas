@@ -41,8 +41,21 @@ implementation
 
 { TZenithApp }
 
+procedure AllowCors(ARequest: TRequest; AResponse: TResponse);
+begin
+  AResponse.Code := 204;
+  AResponse.SendHeaders;
+end;
+
 procedure NotFound(ARequest: TRequest; AResponse: TResponse);
 begin
+  if ARequest.Method.Equals('OPTIONS') and
+     GetEnvVariable('ZENITH_ALLOW_CORS', 'Y').Equals('Y') then
+  begin
+    AllowCors(ARequest, AResponse);
+    Exit;
+  end;
+
   raise ENotFound.Create('not found');
 end;
 
@@ -53,6 +66,15 @@ begin
   ZenithLogger := TZenithLogger.Create(GetEnvVariable('ZENITH_LOGFILE'));
   ConfigureApplication(Application);
   SetDocRoute('/docs');
+
+  if GetEnvVariable('ZENITH_ALLOW_CORS', 'Y').Equals('Y') then
+  begin
+    Router.AddCustomHeader('Access-Control-Allow-Origin', '*');
+    Router.AddCustomHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS, PUT, DELETE');
+    Router.AddCustomHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+    Router.AddCustomHeader('Access-Control-Allow-Credentials', 'true');
+    Router.AddCustomHeader('Access-Control-Allow-Headers', '*');
+  end;
 
   HTTPRouter.RegisterRoute(
     '/not-found',
