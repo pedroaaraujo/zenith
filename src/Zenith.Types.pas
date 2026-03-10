@@ -36,15 +36,10 @@ begin
     if not AInstance.IsEmpty then
       Json.Strings['instance'] := AInstance;
 
-    {$IFDEF MSWINDOWS}
-    Result := Utf8ToAnsi(UTF8Encode(Json.AsJSON));
-    {$ELSE}
     Result := Json.AsJSON;
-    {$ENDIF}
   finally
     Json.Free;
   end;
 end;
 
 end.
-
