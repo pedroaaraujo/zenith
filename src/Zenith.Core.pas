@@ -16,7 +16,7 @@ implementation
 procedure HandleExcept(E: Exception; AReq: TRequest; AResp: TResponse);
 var
   Json: TJSONObject;
-  Error, Title: string;
+  Error, Title, LogLine: string;
 begin
   Json := TJSONObject.Create;
   try
@@ -136,17 +136,17 @@ begin
       );
     end;
 
-    ZenithLogger.Error(
-      Concat(
-        'Request: ',
-        AResp.Request.RemoteAddress, ' ',
-        AResp.Request.Method + ' ',
-        AResp.Request.URL, ' ',
-        AResp.Request.Content,
-        sLineBreak +
-       'Response: ', AResp.Contents.Text
-      )
-    );
+    LogLine :=
+      'Request: ' +
+      AResp.Request.RemoteAddress + ' ' +
+      AResp.Request.Method + ' ' +
+      AResp.Request.URL + ' ' +
+      AResp.Request.Content +
+      sLineBreak +
+     'Response: ' +
+     AResp.Content;
+
+    ZenithLogger.Error(LogLine);
     AResp.SendContent;
   finally
     Json.Free;
