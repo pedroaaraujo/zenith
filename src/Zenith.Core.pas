@@ -103,7 +103,7 @@ begin
         Error := 'NOT_FOUND';
         Title := 'Não encontrado.';
       end;
-      AResp.Contents.Text := TJsonError.ToJson(
+      AResp.Content := TJsonError.ToJson(
         Error,
         Title,
         AResp.Code,
@@ -117,7 +117,7 @@ begin
       AResp.Code := StatusBadRequest;
       Error := 'VALIDATION_ERROR';
       Title := 'Falha na validação de regras de negócio.';
-      AResp.Contents.Text := TJsonError.ToJson(
+      AResp.Content := TJsonError.ToJson(
         Error,
         Title,
         AResp.Code,
@@ -128,7 +128,7 @@ begin
     else
     begin
       AResp.Code := StatusInternalServerError;
-      AResp.Contents.Text := TJsonError.ToJson(
+      AResp.Content := TJsonError.ToJson(
         'SERVER_ERROR',
         'Não foi possível executar a operação.',
         AResp.Code,
