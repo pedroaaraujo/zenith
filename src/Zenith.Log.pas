@@ -22,12 +22,12 @@ type
   public
     constructor Create(const ALogFilePath: string = ''; AIncludeTimestamp: Boolean = True);
     procedure SetLogLevels(ALevels: TLogLevelSet);
-    procedure Log(ALevel: TLogLevel; const AMessage: string);
-    procedure Debug(const AMessage: string);
-    procedure Info(const AMessage: string);
-    procedure Warning(const AMessage: string);
-    procedure Error(const AMessage: string);
-    procedure Critical(const AMessage: string);
+    procedure Log(ALevel: TLogLevel; const AMessage: RawByteString);
+    procedure Debug(const AMessage: RawByteString);
+    procedure Info(const AMessage: RawByteString);
+    procedure Warning(const AMessage: RawByteString);
+    procedure Error(const AMessage: RawByteString);
+    procedure Critical(const AMessage: RawByteString);
   end;
 
   var
@@ -68,7 +68,7 @@ begin
   Result := FormatDateTime('yyyy-mm-dd hh:nn:ss.zzz', Now);
 end;
 
-procedure TZenithLogger.Log(ALevel: TLogLevel; const AMessage: string);
+procedure TZenithLogger.Log(ALevel: TLogLevel; const AMessage: RawByteString);
 var
   LogLine: string;
   LogFile: TextFile;
@@ -94,7 +94,11 @@ begin
     Write(LogLevelToString(ALevel) + ' ');
 
     TextColor(LightGray);
+    {$IFDEF WINDOWS}
+    Writeln(Utf8ToAnsi(AMessage));
+    {$ELSE}
     Writeln(AMessage);
+    {$ENDIF}
     Exit;
   end;
 
@@ -112,27 +116,27 @@ begin
   CloseFile(LogFile);
 end;
 
-procedure TZenithLogger.Debug(const AMessage: string);
+procedure TZenithLogger.Debug(const AMessage: RawByteString);
 begin
   Log(llDebug, AMessage);
 end;
 
-procedure TZenithLogger.Info(const AMessage: string);
+procedure TZenithLogger.Info(const AMessage: RawByteString);
 begin
   Log(llInfo, AMessage);
 end;
 
-procedure TZenithLogger.Warning(const AMessage: string);
+procedure TZenithLogger.Warning(const AMessage: RawByteString);
 begin
   Log(llWarning, AMessage);
 end;
 
-procedure TZenithLogger.Error(const AMessage: string);
+procedure TZenithLogger.Error(const AMessage: RawByteString);
 begin
   Log(llError, AMessage);
 end;
 
-procedure TZenithLogger.Critical(const AMessage: string);
+procedure TZenithLogger.Critical(const AMessage: RawByteString);
 begin
   Log(llCritical, AMessage);
 end;
