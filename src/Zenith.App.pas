@@ -124,9 +124,16 @@ end;
 
 procedure TZenithApp.Run;
 begin
-  Application.Initialize;
-  ZenithLogger.Info('Application running on port ' + Application.Port.ToString);
-  Application.Run;
+  try
+    Application.Initialize;
+    ZenithLogger.Info('Application running on port ' + Application.Port.ToString);
+    Application.Run;
+  except
+    on E: Exception do
+    begin
+      ZenithLogger.Error('The application could not start. ' + E.Message);
+    end;
+  end;
 end;
 
 initialization
