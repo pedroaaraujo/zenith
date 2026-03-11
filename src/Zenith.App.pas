@@ -29,6 +29,7 @@ type
     function SetDescription(const ADescription: string): TZenithApp;
     function SetVersion(const AVersion: string): TZenithApp;
     function SetDocRoute(const ARoute: string): TZenithApp;
+    function SetPort(const APort: Integer): TZenithApp;
     procedure Run;
     procedure AfterConstruction; override;
   end;
@@ -115,6 +116,12 @@ begin
   Result := Self;
 end;
 
+function TZenithApp.SetPort(const APort: Integer): TZenithApp;
+begin
+  Application.Port := APort;
+  Result := Self;
+end;
+
 procedure TZenithApp.Run;
 begin
   Application.Initialize;
@@ -130,4 +137,3 @@ finalization
   ZenithApp.Free;
 
 end.
-
