@@ -5,7 +5,7 @@ unit Zenith.Log;
 interface
 
 uses
-  Classes, SysUtils, crt;
+  Classes, SysUtils;
 
 type
   TLogLevel = (llDebug, llInfo, llWarning, llError, llCritical);
@@ -76,36 +76,20 @@ begin
   if not (ALevel in FLogLevels) then
     Exit;
 
-  if FLogFilePath.Trim.IsEmpty then
-  begin
-    TextColor(LightGray);
-
-    if FIncludeTimestamp then
-      Write(Format('[%s] ', [GetTimestamp]));
-
-    case ALevel of
-      llDebug:    TextColor(Blue);
-      llInfo:     TextColor(Blue);
-      llWarning:  TextColor(Yellow);
-      llError:    TextColor(Red);
-      llCritical: TextColor(Red);
-    end;
-
-    Write(LogLevelToString(ALevel) + ' ');
-
-    TextColor(LightGray);
-    {$IFDEF WINDOWS}
-    Writeln(Utf8ToAnsi(AMessage));
-    {$ELSE}
-    Writeln(AMessage);
-    {$ENDIF}
-    Exit;
-  end;
-
   if FIncludeTimestamp then
     LogLine := Format('[%s] [%s] %s', [GetTimestamp, LogLevelToString(ALevel), AMessage])
   else
     LogLine := Format('[%s] %s', [LogLevelToString(ALevel), AMessage]);
+
+  if FLogFilePath.Trim.IsEmpty then
+  begin
+    {$IFDEF WINDOWS}
+    Writeln(Utf8ToAnsi(LogLine));
+    {$ELSE}
+    Writeln(LogLine);
+    {$ENDIF}
+    Exit;
+  end;
 
   if not FileExists(FLogFilePath) then
     AssignFile(LogFile, FLogFilePath)
