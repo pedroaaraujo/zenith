@@ -30,6 +30,7 @@ type
     function SetVersion(const AVersion: string): TZenithApp;
     function SetDocRoute(const ARoute: string): TZenithApp;
     function SetPort(const APort: Integer): TZenithApp;
+    function SetQueueSize(const ASize: Word): TZenithApp;
     procedure Run;
     procedure AfterConstruction; override;
   end;
@@ -119,6 +120,12 @@ end;
 function TZenithApp.SetPort(const APort: Integer): TZenithApp;
 begin
   Application.Port := APort;
+  Result := Self;
+end;
+
+function TZenithApp.SetQueueSize(const ASize: Word): TZenithApp;
+begin
+  Application.QueueSize := ASize;
   Result := Self;
 end;
 
