@@ -91,11 +91,11 @@ begin
     Exit;
   end;
 
-  if not FileExists(FLogFilePath) then
-    AssignFile(LogFile, FLogFilePath)
+  AssignFile(LogFile, FLogFilePath);
+  if FileExists(FLogFilePath) then
+    Append(LogFile)
   else
-    Append(LogFile);
-  Rewrite(LogFile);
+    Rewrite(LogFile);
   Writeln(LogFile, LogLine);
   CloseFile(LogFile);
 end;
