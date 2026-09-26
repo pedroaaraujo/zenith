@@ -1,0 +1,13 @@
+# Lazarus / FPC
+*.ppu
+*.o
+*.or
+*.a
+*.s
+*.res
+*.lps
+*.bak
+backup/
+lib/
+.vscode/
+todolist
