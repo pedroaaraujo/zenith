@@ -62,6 +62,8 @@ begin
 end;
 
 procedure TZenithApp.AfterConstruction;
+var
+  CorsOrigin: string;
 begin
   inherited AfterConstruction;
   Application.Port := StrToIntDef(GetEnvVariable('ZENITH_PORT'), 8080);
@@ -71,11 +73,14 @@ begin
 
   if GetEnvVariable('ZENITH_ALLOW_CORS', 'Y').Equals('Y') then
   begin
-    Router.AddCustomHeader('Access-Control-Allow-Origin', '*');
+    CorsOrigin := GetEnvVariable('ZENITH_CORS_ORIGIN', '*').Trim;
+    Router.AddCustomHeader('Access-Control-Allow-Origin', CorsOrigin);
     Router.AddCustomHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS, PUT, DELETE');
     Router.AddCustomHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-    Router.AddCustomHeader('Access-Control-Allow-Credentials', 'true');
-    Router.AddCustomHeader('Access-Control-Allow-Headers', '*');
+    Router.AddCustomHeader('Vary', 'Origin');
+    if not CorsOrigin.Equals('*') and
+       GetEnvVariable('ZENITH_CORS_ALLOW_CREDENTIALS', 'N').Equals('Y') then
+      Router.AddCustomHeader('Access-Control-Allow-Credentials', 'true');
   end;
 
   HTTPRouter.RegisterRoute(
@@ -131,16 +136,9 @@ end;
 
 procedure TZenithApp.Run;
 begin
-  try
-    Application.Initialize;
-    ZenithLogger.Info('Application running on port ' + Application.Port.ToString);
-    Application.Run;
-  except
-    on E: Exception do
-    begin
-      ZenithLogger.Error('The application could not start. ' + E.Message);
-    end;
-  end;
+  Application.Initialize;
+  ZenithLogger.Info('Application running on port ' + Application.Port.ToString);
+  Application.Run;
 end;
 
 initialization

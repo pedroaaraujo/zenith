@@ -244,7 +244,7 @@ Quando uma exceção semântica é lançada em qualquer rota, o Zenith intercept
 
 ```json
 {
-  "type": "VALIDATION_ERROR",
+  "type": "urn:zenith:problem:validation-error",
   "title": "Falha na validação de regras de negócio.",
   "status": 400,
   "detail": "Field TUserInsert.email is invalid: E-mail format is invalid",
@@ -324,11 +324,20 @@ Crie um arquivo `.env` no mesmo diretório do executável:
 ```env
 ZENITH_PORT=8080
 ZENITH_ALLOW_CORS=Y
+ZENITH_CORS_ORIGIN=https://app.empresa.com
+ZENITH_CORS_ALLOW_CREDENTIALS=N
 ZENITH_LOGFILE=zenith.log
 ZENITH_JWT_SECRET=sua-chave-secreta-super-segura-aqui
+ZENITH_JWT_EXPIRATION=30
+ZENITH_TODO_DATABASE=/var/lib/minha-api/todo.sqlite
 ```
 
-As variáveis são consumidas automaticamente pelo framework ou diretamente no seu código:
+Variáveis exportadas pelo processo têm precedência sobre o arquivo `.env`. Para
+cookies ou autenticação enviada pelo navegador, configure uma origem específica
+em `ZENITH_CORS_ORIGIN` e habilite credenciais explicitamente. A origem `*` não
+é combinada com credenciais.
+
+As variáveis podem ser consultadas diretamente no código:
 
 ```pascal
 uses Zenith.Env;
@@ -389,10 +398,14 @@ server {
 
 ## 📁 Demonstração Incluída
 
-Consulte o projeto completo em [`demo/00-todolist`](demo/00-todolist) para ver a integração prática entre:
+Consulte [`demo/00-todolist`](demo/00-todolist) para uma API persistente em SQLite:
 - `Zenith.App` e `SwaggerRouter`
-- `DeltaModel` e `TDeltaModelList`
-- Rotas REST com paginação, criação e busca por ID.
+- `DeltaModel`, migrations automáticas e pool de conexões
+- Rotas REST para listar, criar, buscar e remover tarefas.
+
+O arquivo SQLite é criado junto ao executável por padrão. Configure
+`ZENITH_TODO_DATABASE` com outro caminho ou use `ZENITH_TODO_DATABASE_URL` para
+informar uma URL de conexão completa.
 
 ---
 

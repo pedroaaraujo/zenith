@@ -65,8 +65,28 @@ type
 implementation
 
 const
-  JWT_ENV_VARIABLE = 'JWT_SECRET';
-  JWT_EXPIRATION_VARIABLE = 'JWT_EXPIRATION';
+  JWT_ENV_VARIABLE = 'ZENITH_JWT_SECRET';
+  JWT_EXPIRATION_VARIABLE = 'ZENITH_JWT_EXPIRATION';
+
+function JwtSecret: string;
+begin
+  Result := Zenith.Env.GetEnvVariable(JWT_ENV_VARIABLE);
+  if Result.IsEmpty then
+    raise EServerError.Create('JWT signing secret is not configured');
+end;
+
+function ConstantTimeEquals(const A, B: string): Boolean;
+var
+  I: Integer;
+  Difference: Byte;
+begin
+  if Length(A) <> Length(B) then
+    Exit(False);
+  Difference := 0;
+  for I := 1 to Length(A) do
+    Difference := Difference or (Byte(Ord(A[I])) xor Byte(Ord(B[I])));
+  Result := Difference = 0;
+end;
 
 function EncodeStringBase64UrlSafe(const AStr: string): string;
 begin
@@ -202,7 +222,7 @@ class function TJWT.GenerateToken(Payload: TPayLoad): string;
 var
   Body, Key: string;
 begin
-  Key := Zenith.Env.GetEnvVariable(JWT_ENV_VARIABLE);
+  Key := JwtSecret;
 
   Body :=
     EncodeStringBase64UrlSafe('{"alg": "HS256", "typ": "JWT"}')  + '.' +
@@ -271,49 +291,74 @@ var
   PayLoadDecoded: string;
   SignatureDecoded: string;
   HeaderJson: TJSONData;
+  PayloadJson: TJSONData;
+  Claim: TJSONData;
   Key: string;
+  FirstDot, SecondDot: SizeInt;
 begin
   Result := nil;
-  Key := Zenith.Env.GetEnvVariable(JWT_ENV_VARIABLE);
+  Key := JwtSecret;
   try
     if Token.IsEmpty then
     begin
       raise Exception.Create('Token is empty');
     end;
 
-    /// Segments
-    HeaderEncoded := ExtractWord(1, Token, ['.']);
-    PayLoadEncoded := ExtractWord(2, Token, ['.']);
-    SignatureEncoded := ExtractWord(3, Token, ['.']);
+    FirstDot := Pos('.', Token);
+    SecondDot := PosEx('.', Token, FirstDot + 1);
+    if (FirstDot <= 1) or (SecondDot <= FirstDot + 1) or
+       (SecondDot >= Length(Token)) or (PosEx('.', Token, SecondDot + 1) > 0) then
+      raise Exception.Create('Malformed token');
+    HeaderEncoded := Copy(Token, 1, FirstDot - 1);
+    PayLoadEncoded := Copy(Token, FirstDot + 1, SecondDot - FirstDot - 1);
+    SignatureEncoded := Copy(Token, SecondDot + 1, MaxInt);
 
     /// Check signature
     SignatureDecoded := EncodeStringBase64UrlSafe(HMACSHA256(Key, HeaderEncoded + '.' + PayLoadEncoded));
-    if (SignatureDecoded <> SignatureEncoded) then
+    if not ConstantTimeEquals(SignatureDecoded, SignatureEncoded) then
     begin
       raise Exception.Create('Signature verification failed');
     end;
 
-    HeaderDecoded := DecodeStringBase64UrlSafe(HeaderEncoded);
-    HeaderJson := GetJSON(HeaderDecoded);
+    HeaderJson := nil;
+    PayloadJson := nil;
+    try
+      HeaderDecoded := DecodeStringBase64UrlSafe(HeaderEncoded);
+      HeaderJson := GetJSON(HeaderDecoded);
+      if (HeaderJson = nil) or (HeaderJson.JSONType <> jtObject) then
+        raise Exception.Create('Cannot read header');
 
-    if HeaderJson = nil then
-    begin
-      raise Exception.Create('Cannot read header');
+      Claim := TJSONObject(HeaderJson).Find('alg');
+      if (Claim = nil) or (Claim.AsString <> 'HS256') then
+        raise Exception.Create('Algorithm not supported');
+
+      PayLoadDecoded := DecodeStringBase64UrlSafe(PayLoadEncoded);
+      PayloadJson := GetJSON(PayLoadDecoded);
+      if (PayloadJson = nil) or (PayloadJson.JSONType <> jtObject) then
+        raise Exception.Create('Cannot read payload');
+      Claim := TJSONObject(PayloadJson).Find('exp');
+      if Claim = nil then
+        raise Exception.Create('Expiration claim is required');
+      if Claim.AsInt64 <= DateTimeToUnix(Now, False) then
+        raise Exception.Create('Token expired');
+      Claim := TJSONObject(PayloadJson).Find('nbf');
+      if (Claim <> nil) and (Claim.AsInt64 > DateTimeToUnix(Now, False)) then
+        raise Exception.Create('Token is not active');
+
+      Result := TPayLoad.Create;
+      Result.FromJson(PayLoadDecoded);
+    finally
+      if HeaderJson <> nil then HeaderJson.Free;
+      if PayloadJson <> nil then PayloadJson.Free;
     end;
-
-    if (HeaderJson.FindPath('.alg').AsString = EmptyStr)
-      or (HeaderJson.FindPath('.alg').AsString <> 'HS256') then
-    begin
-      raise Exception.Create('Algorithm not supported');
-    end;
-
-    PayLoadDecoded:= DecodeStringBase64UrlSafe(PayLoadEncoded);
-
-    Result := TPayLoad.Create;
-    Result.FromJson(PayLoadDecoded);
   except
     on E: Exception do
     begin
+      if Result <> nil then
+      begin
+        Result.Free;
+        Result := nil;
+      end;
       raise EUnauthorized.CreateFmt('Invalid JWT - %s', [E.Message]);
     end;
   end;
@@ -331,6 +376,7 @@ procedure TJWTAuthentication.Validate;
 var
   Exp, ANow: TDateTime;
 begin
+  FreeAndNil(FPayload);
   FPayload := TJWT.ValidadeToken(FAuth);
 
   if FPayload = nil then
@@ -348,7 +394,9 @@ end;
 
 constructor TJWTAuthentication.Create(Auth: string);
 begin
-  FAuth := Auth.Replace('Bearer ', EmptyStr, [rfIgnoreCase]);
+  FAuth := Auth.Trim;
+  if FAuth.StartsWith('Bearer ', True) then
+    FAuth := FAuth.Substring(7).Trim;
 end;
 
 destructor TJWTAuthentication.Destroy;

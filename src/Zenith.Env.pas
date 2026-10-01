@@ -17,12 +17,13 @@ var
   SL: TStringList;
   Arquivo: string;
 begin
+  { Process environment variables are the deployment-level override. }
+  Result := GetEnvironmentVariable(VarName);
+  if not Result.IsEmpty then
+    Exit;
+
   Arquivo := ExtractFilePath(ParamStr(0)) + '.env';
-  if not FileExists(Arquivo) then
-  begin
-    Result := GetEnvironmentVariable(VarName);
-  end
-  else
+  if FileExists(Arquivo) then
   begin
     SL := TStringList.Create;
     try

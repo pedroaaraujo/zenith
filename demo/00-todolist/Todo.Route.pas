@@ -5,12 +5,10 @@ unit Todo.Route;
 interface
 
 uses
-  Classes, SysUtils, HTTPDefs, Zenith.App, Zenith.Consts, Todo.Model, DeltaModel;
+  Classes, SysUtils, HTTPDefs, Zenith.App, Zenith.Consts, Zenith.Exceptions,
+  Todo.Model, DeltaModel, DeltaModel.ORM.Pool, DeltaModel.ORM.DML;
 
 type
-
-  { TTodoRouter }
-
   TTodoRouter = class
   public
     class procedure Register;
@@ -18,68 +16,91 @@ type
 
 implementation
 
-{ TTodoRouter }
+function ParseTodoId(ARequest: TRequest): Integer;
+begin
+  if not TryStrToInt(ARequest.RouteParams['id'], Result) or (Result < 1) then
+    raise EBadRequest.Create('ID de tarefa inválido.');
+end;
 
 procedure GetTodo(ARequest: TRequest; AResponse: TResponse);
 var
-  Obj: TTodoResponse;
+  Lease: IDeltaPooledEngine;
+  Todo: TTodo;
 begin
-  Obj := TTodoResponse.Create;
+  Lease := TodoPool.Acquire;
+  Todo := TTodo(Lease.Find(TTodo, ParseTodoId(ARequest)));
   try
-    Obj.id := ARequest.RouteParams['id'].ToInteger;
-    Obj.description := 'Run Zenith Demo';
-    Obj.done := True;
-
+    if Todo = nil then
+      raise EResourceNotFound.Create('Tarefa não encontrada.');
     AResponse.Code := StatusOK;
-    AResponse.Content := Obj.ToJson;
+    AResponse.Content := Todo.ToJson;
   finally
-    Obj.Free;
+    Todo.Free;
   end;
 end;
 
 procedure GetAllTodo(ARequest: TRequest; AResponse: TResponse);
 var
+  Lease: IDeltaPooledEngine;
+  Query: TQuery;
   List: TDeltaModelList;
-  Obj: TTodoResponse;
 begin
-  List := TDeltaModelList.Create;
+  Lease := TodoPool.Acquire;
+  Query := Lease.Query(TTodo);
   try
-    List.SetDeltaModelClass(TTodoResponse);
-    repeat
-      Obj := TTodoResponse.Create;
-      Obj.id := List.Records.Count + 1;
-      Obj.description := 'ToDo Demo ' + Obj.id.ToString;
-      Obj.done := False;
-      List.Records.Add(Obj);
-    until List.Records.Count = 20;
-
-    AResponse.Code := StatusOK;
-    AResponse.Content := List.ToJson;
+    List := Query.All;
+    try
+      AResponse.Code := StatusOK;
+      AResponse.Content := List.ToJson;
+    finally
+      List.Free;
+    end;
   finally
-    List.Free;
+    Query.Free;
   end;
 end;
 
 procedure CreateTodo(ARequest: TRequest; AResponse: TResponse);
 var
-  Resp: TTodoResponse;
-  Req: TTodoInsert;
+  Lease: IDeltaPooledEngine;
+  Todo: TTodo;
+  Input: TTodoInsert;
 begin
-  Req := TTodoInsert.Create;
-  Resp := TTodoResponse.Create;
+  Input := TTodoInsert.Create;
   try
-    Req.FromJson(ARequest.Content);
+    try
+      Input.FromJson(ARequest.Content);
+    except
+      on E: Exception do
+        raise EBadRequest.Create('O corpo deve conter um JSON válido.');
+    end;
+    Input.Validate;
 
-    Resp.id := 1;
-    Resp.description := Req.description;
-    Resp.done := false;
-
-    AResponse.Code := StatusCreated;
-    AResponse.Content := Resp.ToJson;
+    Lease := TodoPool.Acquire;
+    Todo := TTodo.Create;
+    try
+      Todo.description.Value := Input.description.Value;
+      Todo.done.Value := False;
+      if not Lease.Save(Todo) then
+        raise EServerError.Create('Não foi possível salvar a tarefa.');
+      AResponse.Code := StatusCreated;
+      AResponse.Content := Todo.ToJson;
+    finally
+      Todo.Free;
+    end;
   finally
-    Resp.Free;
-    Req.Free;
+    Input.Free;
   end;
+end;
+
+procedure DeleteTodo(ARequest: TRequest; AResponse: TResponse);
+var
+  Lease: IDeltaPooledEngine;
+begin
+  Lease := TodoPool.Acquire;
+  if not Lease.DeleteById(TTodo, ParseTodoId(ARequest)) then
+    raise EResourceNotFound.Create('Tarefa não encontrada.');
+  AResponse.Code := StatusNoContent;
 end;
 
 class procedure TTodoRouter.Register;
@@ -87,22 +108,31 @@ begin
   Router
     .Get('/todo', @GetAllTodo)
     .AddTags('ToDo')
-    .AddResponse(StatusOK, 'Get All ToDo''s', TTodoResponse.SwaggerSchema(True));
+    .AddResponse(StatusOK, 'Lista de tarefas', TTodo.SwaggerSchema(True));
 
   Router
     .Get('/todo/:id', @GetTodo)
     .AddTags('ToDo')
-    .AddPathParam('id', True)
-    .AddResponse(StatusOK, 'Get ToDo by Id', TTodoResponse.SwaggerSchema());
+    .AddPathParam('id', True, 'integer', '1', 'ID da tarefa')
+    .AddResponse(StatusOK, 'Tarefa encontrada', TTodo.SwaggerSchema())
+    .AddResponse(StatusNotFound, 'Tarefa não encontrada');
 
   Router
-    .Post('/todo/', @CreateTodo)
+    .Post('/todo', @CreateTodo)
     .AddTags('ToDo')
-    .SetBodyContent(TTodoInsert.SwaggerSchema())
-    .AddResponse(StatusCreated, 'CreateTodo', TTodoResponse.SwaggerSchema());
+    .SetBodyContent(TTodoInsert.SwaggerSchema(), True)
+    .AddResponse(StatusCreated, 'Tarefa criada', TTodo.SwaggerSchema())
+    .AddResponse(StatusBadRequest, 'Dados inválidos');
+
+  Router
+    .Delete('/todo/:id', @DeleteTodo)
+    .AddTags('ToDo')
+    .AddPathParam('id', True, 'integer', '1', 'ID da tarefa')
+    .AddResponse(StatusNoContent, 'Tarefa removida')
+    .AddResponse(StatusNotFound, 'Tarefa não encontrada');
 end;
 
 initialization
   TTodoRouter.Register;
-end.
 
+end.

@@ -26,7 +26,11 @@ var
 begin
   Json := TJSONObject.Create;
   try
-    Json.Strings['type'] := AType;
+    if AType.StartsWith('urn:') or AType.StartsWith('https://') or
+       AType.StartsWith('http://') then
+      Json.Strings['type'] := AType
+    else
+      Json.Strings['type'] := 'urn:zenith:problem:' + AType.ToLower;
     Json.Strings['title'] := ATitle;
     Json.Integers['status'] := AStatus;
 

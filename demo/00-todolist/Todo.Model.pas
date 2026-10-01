@@ -5,56 +5,86 @@ unit Todo.Model;
 interface
 
 uses
-  Classes, SysUtils, DeltaModel, DeltaValidator;
+  Classes, SysUtils, DeltaModel, DeltaModel.Fields, DeltaValidator,
+  DeltaModel.ORM.Connection, DeltaModel.ORM.Pool;
 
 type
-
-  { TTodoInsert }
-
   TTodoInsert = class(TDeltaModel)
   private
-    Fdescription: string;
+    FDescription: TDFStringRequired;
   published
-    property description: string read Fdescription write Fdescription;
+    property description: TDFStringRequired read FDescription write FDescription;
   public
     procedure Validate; override;
   end;
 
   TTodo = class(TTodoInsert)
   private
-    Fdone: Boolean;
+    FDone: TDFBooleanRequired;
+    FId: TDFIntRequired;
   published
-    property done: Boolean read Fdone write Fdone;
+    property done: TDFBooleanRequired read FDone write FDone;
+    property id: TDFIntRequired read FId write FId;
   public
-    procedure Validate; override;
+    procedure AfterConstruction; override;
   end;
 
-  { TTodoResponse }
+procedure InitializeTodoStore;
 
-  TTodoResponse = class(TTodo)
-  private
-    Fid: Integer;
-  published
-    property id: Integer read Fid write Fid;
-  end;
+var
+  TodoPool: TDeltaConnectionPool;
 
 implementation
 
-{ TTodoInsert }
+uses
+  Zenith.Env, DeltaModel.ORM.Schema;
 
 procedure TTodoInsert.Validate;
 begin
-  Validator.Clear;
-
-  Validator
-    .AddField('Todo.Description', Self.description)
-    .AddValidator(TValidatorItemMinLength.Create(2));
-end;
-
-procedure TTodo.Validate;
-begin
   inherited Validate;
+  if Length(description.Value.Trim) < 2 then
+    raise EDeltaValidation.Create('A descrição deve ter pelo menos 2 caracteres.');
 end;
+
+procedure TTodo.AfterConstruction;
+begin
+  inherited AfterConstruction;
+  TableName := 'todo';
+  id.DBOptions := [dboPrimaryKey, dboAutoInc];
+end;
+
+procedure InitializeTodoStore;
+var
+  DatabaseURL, DatabasePath: string;
+  Engine: TDeltaORMEngine;
+  Schema: TDeltaORMSchema;
+begin
+  if Assigned(TodoPool) then
+    Exit;
+
+  DatabasePath := GetEnvVariable('ZENITH_TODO_DATABASE',
+    ExtractFilePath(ParamStr(0)) + 'todo.sqlite');
+  DatabaseURL := GetEnvVariable('ZENITH_TODO_DATABASE_URL',
+    'sqlite://' + ExpandFileName(DatabasePath));
+
+  Engine := TDeltaORMEngine.Create(DatabaseURL);
+  try
+    Engine.Connection.Open;
+    Schema := TDeltaORMSchema.Create(Engine);
+    try
+      Schema.RegisterModel(TTodo);
+      Schema.PrepareDB(True);
+    finally
+      Schema.Free;
+    end;
+  finally
+    Engine.Free;
+  end;
+
+  TodoPool := TDeltaConnectionPool.Create(DatabaseURL, 1, 10);
+end;
+
+finalization
+  TodoPool.Free;
 
 end.
-

@@ -11,6 +11,7 @@ uses
   Zenith.App, Todo.Model, Todo.Route;
 
 begin
+  InitializeTodoStore;
   ZenithApp
     .SetTitle('ToDo List')
     .Run;

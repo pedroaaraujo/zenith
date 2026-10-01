@@ -5,7 +5,7 @@ unit Zenith.Log;
 interface
 
 uses
-  Classes, SysUtils;
+  Classes, SysUtils, SyncObjs;
 
 type
   TLogLevel = (llDebug, llInfo, llWarning, llError, llCritical);
@@ -17,10 +17,12 @@ type
     FLogFilePath: string;
     FLogLevels: set of TLogLevel;
     FIncludeTimestamp: Boolean;
+    FLock: TCriticalSection;
     function LogLevelToString(ALevel: TLogLevel): string;
     function GetTimestamp: string;
   public
     constructor Create(const ALogFilePath: string = ''; AIncludeTimestamp: Boolean = True);
+    destructor Destroy; override;
     procedure SetLogLevels(ALevels: TLogLevelSet);
     procedure Log(ALevel: TLogLevel; const AMessage: RawByteString);
     procedure Debug(const AMessage: RawByteString);
@@ -41,13 +43,25 @@ constructor TZenithLogger.Create(const ALogFilePath: string; AIncludeTimestamp: 
 begin
   FLogFilePath := ALogFilePath;
   FIncludeTimestamp := AIncludeTimestamp;
+  FLock := TCriticalSection.Create;
   // Default log levels
   FLogLevels := [llDebug, llInfo, llWarning, llError, llCritical];
 end;
 
+destructor TZenithLogger.Destroy;
+begin
+  FLock.Free;
+  inherited Destroy;
+end;
+
 procedure TZenithLogger.SetLogLevels(ALevels: TLogLevelSet);
 begin
-  FLogLevels := ALevels;
+  FLock.Acquire;
+  try
+    FLogLevels := ALevels;
+  finally
+    FLock.Release;
+  end;
 end;
 
 function TZenithLogger.LogLevelToString(ALevel: TLogLevel): string;
@@ -73,31 +87,39 @@ var
   LogLine: string;
   LogFile: TextFile;
 begin
-  if not (ALevel in FLogLevels) then
-    Exit;
+  FLock.Acquire;
+  try
+    if not (ALevel in FLogLevels) then
+      Exit;
 
-  if FIncludeTimestamp then
-    LogLine := Format('[%s] [%s] %s', [GetTimestamp, LogLevelToString(ALevel), AMessage])
-  else
-    LogLine := Format('[%s] %s', [LogLevelToString(ALevel), AMessage]);
+    if FIncludeTimestamp then
+      LogLine := Format('[%s] [%s] %s', [GetTimestamp, LogLevelToString(ALevel), AMessage])
+    else
+      LogLine := Format('[%s] %s', [LogLevelToString(ALevel), AMessage]);
 
-  if FLogFilePath.Trim.IsEmpty then
-  begin
-    {$IFDEF WINDOWS}
-    Writeln(Utf8ToAnsi(LogLine));
-    {$ELSE}
-    Writeln(LogLine);
-    {$ENDIF}
-    Exit;
+    if FLogFilePath.Trim.IsEmpty then
+    begin
+      {$IFDEF WINDOWS}
+      Writeln(Utf8ToAnsi(LogLine));
+      {$ELSE}
+      Writeln(LogLine);
+      {$ENDIF}
+      Exit;
+    end;
+
+    AssignFile(LogFile, FLogFilePath);
+    if FileExists(FLogFilePath) then
+      Append(LogFile)
+    else
+      Rewrite(LogFile);
+    try
+      Writeln(LogFile, LogLine);
+    finally
+      CloseFile(LogFile);
+    end;
+  finally
+    FLock.Release;
   end;
-
-  AssignFile(LogFile, FLogFilePath);
-  if FileExists(FLogFilePath) then
-    Append(LogFile)
-  else
-    Rewrite(LogFile);
-  Writeln(LogFile, LogLine);
-  CloseFile(LogFile);
 end;
 
 procedure TZenithLogger.Debug(const AMessage: RawByteString);
