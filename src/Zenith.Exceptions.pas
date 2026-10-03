@@ -21,6 +21,7 @@ type
   EServerError = class(HTTPException);
   EBadRequest = class(HTTPException);
   ENotFound = class(HTTPException);
+  EUnprocessableEntity = class(HTTPException);
 
 implementation
 

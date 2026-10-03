@@ -97,6 +97,7 @@ const
   StatusUnsupportedMediaType                = 415;         //[RFC7231, Section 6.5.13]
   StatusRangeNotSatisfiable                 = 416;         //[RFC7233, Section 4.4]
   StatusExpectationFailed                   = 417;         //[RFC7231, Section 6.5.14]
+  StatusUnprocessableEntity                 = 422;         //[RFC4918, Section 11.2]
   StatusTooManyRequests                     = 429;
 
   // 5xx - Server Errors

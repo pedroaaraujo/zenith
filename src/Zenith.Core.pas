@@ -93,6 +93,13 @@ begin
     Title := 'Requisição inválida.';
     Detail := E.Message;
   end
+  else if E is EUnprocessableEntity then
+  begin
+    AResp.Code := StatusUnprocessableEntity;
+    Error := 'unprocessable-entity';
+    Title := 'Entidade improcessável.';
+    Detail := E.Message;
+  end
   else if E is EServerError then
   begin
     AResp.Code := StatusInternalServerError;
