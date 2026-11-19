@@ -41,7 +41,18 @@ var
 
 implementation
 
+uses
+  DeltaModel;
+
 { TZenithApp }
+
+procedure ZenithRegisterModelProc(const AName, ASchemaJson: string);
+begin
+  if Assigned(Router) then
+    Router.EnsureModel(AName, ASchemaJson)
+  else if Assigned(SwaggerRouter) then
+    SwaggerRouter.EnsureModel(AName, ASchemaJson);
+end;
 
 procedure AllowCors(ARequest: TRequest; AResponse: TResponse);
 begin
@@ -144,8 +155,10 @@ end;
 initialization
   Router := SwaggerRouter;
   ZenithApp := TZenithApp.Create;
+  SetDeltaModelRegisterSchemaProc(@ZenithRegisterModelProc);
 
 finalization
+  SetDeltaModelRegisterSchemaProc(nil);
   ZenithApp.Free;
 
 end.

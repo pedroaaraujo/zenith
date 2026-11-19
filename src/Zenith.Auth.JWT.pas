@@ -41,10 +41,12 @@ type
 
   TJWT = class
   public
+    class procedure SetSecret(const ASecret: string);
+    class procedure AddFallbackSecret(const ASecret: string);
     class function GenerateToken(Payload: TPayLoad): string;
     class function GenerateJson(Payload: TPayLoad): RawByteString;
     class function OpenAPISchema: string;
-    class function ValidadeToken(Token: string): TPayLoad;
+    class function ValidadeToken(Token: string; AllowExpiredWithinGrace: Boolean = False; MaxGraceSeconds: Int64 = 604800): TPayLoad;
   end;
 
 
@@ -54,11 +56,15 @@ type
   private
     FPayload: TPayLoad;
     FAuth: string;
+    FAllowGracePeriod: Boolean;
+    FMaxGraceSeconds: Int64;
     procedure SetPayload(AValue: TPayLoad);
   public
     property Payload: TPayLoad read FPayload write SetPayload;
+    property AllowGracePeriod: Boolean read FAllowGracePeriod write FAllowGracePeriod;
+    property MaxGraceSeconds: Int64 read FMaxGraceSeconds write FMaxGraceSeconds;
     procedure Validate;
-    constructor Create(Auth: string);
+    constructor Create(Auth: string; AAllowGracePeriod: Boolean = False; AMaxGraceSeconds: Int64 = 604800);
     destructor Destroy; override;
   end;
 
@@ -68,11 +74,78 @@ const
   JWT_ENV_VARIABLE = 'ZENITH_JWT_SECRET';
   JWT_EXPIRATION_VARIABLE = 'ZENITH_JWT_EXPIRATION';
 
-function JwtSecret: string;
+var
+  GPrimaryCustomSecret: string = '';
+  GFallbackCustomSecrets: TStringList = nil;
+
+class procedure TJWT.SetSecret(const ASecret: string);
 begin
-  Result := Zenith.Env.GetEnvVariable(JWT_ENV_VARIABLE);
-  if Result.IsEmpty then
+  GPrimaryCustomSecret := Trim(ASecret);
+end;
+
+class procedure TJWT.AddFallbackSecret(const ASecret: string);
+begin
+  if not Assigned(GFallbackCustomSecrets) then
+    GFallbackCustomSecrets := TStringList.Create;
+  if (Trim(ASecret) <> '') and (GFallbackCustomSecrets.IndexOf(Trim(ASecret)) < 0) then
+    GFallbackCustomSecrets.Add(Trim(ASecret));
+end;
+
+function JwtSecret: string;
+var
+  RawEnv: string;
+  P: SizeInt;
+begin
+  if not GPrimaryCustomSecret.IsEmpty then
+    Exit(GPrimaryCustomSecret);
+
+  RawEnv := Zenith.Env.GetEnvVariable(JWT_ENV_VARIABLE);
+  if RawEnv.IsEmpty then
     raise EServerError.Create('JWT signing secret is not configured');
+
+  P := Pos(',', RawEnv);
+  if P > 0 then
+    Result := Trim(Copy(RawEnv, 1, P - 1))
+  else
+    Result := Trim(RawEnv);
+end;
+
+procedure ObterTodosSegredosValidos(AList: TStrings);
+var
+  RawEnv, S: string;
+  P: SizeInt;
+begin
+  AList.Clear;
+  if not GPrimaryCustomSecret.IsEmpty then
+    AList.Add(GPrimaryCustomSecret);
+
+  RawEnv := Zenith.Env.GetEnvVariable(JWT_ENV_VARIABLE);
+  while not RawEnv.IsEmpty do
+  begin
+    P := Pos(',', RawEnv);
+    if P > 0 then
+    begin
+      S := Trim(Copy(RawEnv, 1, P - 1));
+      Delete(RawEnv, 1, P);
+    end
+    else
+    begin
+      S := Trim(RawEnv);
+      RawEnv := '';
+    end;
+
+    if (not S.IsEmpty) and (AList.IndexOf(S) < 0) then
+      AList.Add(S);
+  end;
+
+  if Assigned(GFallbackCustomSecrets) then
+  begin
+    for S in GFallbackCustomSecrets do
+    begin
+      if (not S.IsEmpty) and (AList.IndexOf(S) < 0) then
+        AList.Add(S);
+    end;
+  end;
 end;
 
 function ConstantTimeEquals(const A, B: string): Boolean;
@@ -122,7 +195,7 @@ var
 begin
   if Fexp = 0 then
   begin
-    Minutes := GetEnvVariable(JWT_EXPIRATION_VARIABLE, '30').ToInteger;
+    Minutes := GetEnvVariable(JWT_EXPIRATION_VARIABLE, '1440').ToInteger;
 
     vIat := UnixToDateTime(Getiat, True);
     vExp := IncMinute(vIat, Minutes);
@@ -282,7 +355,7 @@ begin
     '}';
 end;
 
-class function TJWT.ValidadeToken(Token: string): TPayLoad;
+class function TJWT.ValidadeToken(Token: string; AllowExpiredWithinGrace: Boolean = False; MaxGraceSeconds: Int64 = 604800): TPayLoad;
 var
   HeaderEncoded: string;
   PayLoadEncoded: string;
@@ -295,9 +368,10 @@ var
   Claim: TJSONData;
   Key: string;
   FirstDot, SecondDot: SizeInt;
+  SignatureMatches: Boolean;
+  SecretList: TStringList;
 begin
   Result := nil;
-  Key := JwtSecret;
   try
     if Token.IsEmpty then
     begin
@@ -313,9 +387,25 @@ begin
     PayLoadEncoded := Copy(Token, FirstDot + 1, SecondDot - FirstDot - 1);
     SignatureEncoded := Copy(Token, SecondDot + 1, MaxInt);
 
-    /// Check signature
-    SignatureDecoded := EncodeStringBase64UrlSafe(HMACSHA256(Key, HeaderEncoded + '.' + PayLoadEncoded));
-    if not ConstantTimeEquals(SignatureDecoded, SignatureEncoded) then
+    /// Check signature across primary and rotated/fallback keys
+    SignatureMatches := False;
+    SecretList := TStringList.Create;
+    try
+      ObterTodosSegredosValidos(SecretList);
+      for Key in SecretList do
+      begin
+        SignatureDecoded := EncodeStringBase64UrlSafe(HMACSHA256(Key, HeaderEncoded + '.' + PayLoadEncoded));
+        if ConstantTimeEquals(SignatureDecoded, SignatureEncoded) then
+        begin
+          SignatureMatches := True;
+          Break;
+        end;
+      end;
+    finally
+      SecretList.Free;
+    end;
+
+    if not SignatureMatches then
     begin
       raise Exception.Create('Signature verification failed');
     end;
@@ -340,7 +430,10 @@ begin
       if Claim = nil then
         raise Exception.Create('Expiration claim is required');
       if Claim.AsInt64 <= DateTimeToUnix(Now, False) then
-        raise Exception.Create('Token expired');
+      begin
+        if not (AllowExpiredWithinGrace and (Claim.AsInt64 + MaxGraceSeconds >= DateTimeToUnix(Now, False))) then
+          raise Exception.Create('Token expired');
+      end;
       Claim := TJSONObject(PayloadJson).Find('nbf');
       if (Claim <> nil) and (Claim.AsInt64 > DateTimeToUnix(Now, False)) then
         raise Exception.Create('Token is not active');
@@ -377,7 +470,7 @@ var
   Exp, ANow: TDateTime;
 begin
   FreeAndNil(FPayload);
-  FPayload := TJWT.ValidadeToken(FAuth);
+  FPayload := TJWT.ValidadeToken(FAuth, FAllowGracePeriod, FMaxGraceSeconds);
 
   if FPayload = nil then
   begin
@@ -388,15 +481,20 @@ begin
   ANow := Now;
   if Exp < ANow then
   begin
-    raise EUnauthorized.Create('Expired Token');
+    if not (FAllowGracePeriod and (Payload.exp + FMaxGraceSeconds >= DateTimeToUnix(ANow, False))) then
+    begin
+      raise EUnauthorized.Create('Expired Token');
+    end;
   end;
 end;
 
-constructor TJWTAuthentication.Create(Auth: string);
+constructor TJWTAuthentication.Create(Auth: string; AAllowGracePeriod: Boolean; AMaxGraceSeconds: Int64);
 begin
   FAuth := Auth.Trim;
   if FAuth.StartsWith('Bearer ', True) then
     FAuth := FAuth.Substring(7).Trim;
+  FAllowGracePeriod := AAllowGracePeriod;
+  FMaxGraceSeconds := AMaxGraceSeconds;
 end;
 
 destructor TJWTAuthentication.Destroy;
@@ -406,5 +504,9 @@ begin
 
   inherited Destroy;
 end;
+
+finalization
+  if Assigned(GFallbackCustomSecrets) then
+    FreeAndNil(GFallbackCustomSecrets);
 
 end.

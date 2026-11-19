@@ -6,7 +6,8 @@ interface
 
 const
   {$REGION CONTENTTYPE}
-  ApplicationJson                   = 'application/json';
+  ApplicationJson                   = 'application/json; charset=utf-8';
+  ApplicationProblemJson            = 'application/problem+json; charset=utf-8';
   ApplicationXml                    = 'application/xml';
   ApplicationYaml                   = 'application/x-yaml';
   TextPlain                         = 'text/plain';

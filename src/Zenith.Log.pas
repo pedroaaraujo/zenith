@@ -97,15 +97,12 @@ begin
     else
       LogLine := Format('[%s] %s', [LogLevelToString(ALevel), AMessage]);
 
-    if FLogFilePath.Trim.IsEmpty then
-    begin
-      {$IFDEF WINDOWS}
-      Writeln(Utf8ToAnsi(LogLine));
-      {$ELSE}
-      Writeln(LogLine);
-      {$ENDIF}
-      Exit;
-    end;
+    {$IFDEF WINDOWS}
+    Writeln(Utf8ToAnsi(LogLine));
+    {$ELSE}
+    Writeln(LogLine);
+    {$ENDIF}
+    Exit;
 
     AssignFile(LogFile, FLogFilePath);
     if FileExists(FLogFilePath) then
