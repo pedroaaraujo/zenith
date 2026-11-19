@@ -12,8 +12,10 @@
 
 ## 🚀 Principais Recursos
 
-- ⚡ **Alta Performance & Concorrência**: Servidor HTTP embutido com suporte nativo a multi-threading (`fphttpapp`) e modo FastCGI (`fpfcgi`).
-- 📖 **Documentação Swagger UI Integrada**: Integração nativa com o [Swagger4Laz](src/swagger4laz), servindo documentação interativa OpenAPI 3.0 em `/docs`.
+- ⚡ **Alta Performance & Concorrência**: Servidor HTTP embutido com suporte nativo a multi-threading (`fphttpapp`), modo FastCGI (`fpfcgi`) e arquitetura Zero-DOM.
+- 🚀 **Streaming JSON Direto & Zero-DOM**: Serialização ultrarrápida via `TDeltaFastJsonStreamer` direto para `RawByteString`, eliminando o overhead de nós DOM intermediários (`TJSONObject`) e formatando números decimais em ponto fixo (`ffFixed`) sem notação científica (`E+`/`E-`).
+- ⚡ **ORM com Binding Tipado Direto**: Mapeamento pré-alocado de colunas com `TColumnBindingMap` e cache de reflexão `TRTTICache`, eliminando conversões intermediárias por Variant em consultas de banco.
+- 📖 **Documentação OpenAPI 3.1 & Swagger UI**: Integração nativa com o [Swagger4Laz](src/swagger4laz), servindo documentação interativa com registro centralizado de schemas em `components.schemas` e referências canônicas `$ref` em `/docs`.
 - 🧩 **Modelagem, Validação & ORM com DeltaModel**: Integração direta com o [DeltaModel](src/deltamodel) para modelos fortemente tipados, validação fluente e persistência multi-SGDB.
 - 🛡️ **Erros Padronizados (RFC 7807)**: Respostas de erro ricas em JSON seguindo o padrão internacional *Problem Details for HTTP APIs*.
 - 🔐 **Autenticação Embutida**:
@@ -217,7 +219,7 @@ begin
     .SetSummary('Buscar usuário por ID')
     .AddTags('Usuários')
     .AddPathParam('id', True, 'integer', '1', 'ID do usuário')
-    .AddResponse(StatusOK, 'Usuário localizado', TUserResponse.SwaggerSchema())
+    .AddResponse(StatusOK, 'Usuário localizado', TUserResponse.SwaggerSchemaObject())
     .AddResponse(StatusBadRequest, 'Requisição inválida')
     .AddResponse(StatusNotFound, 'Usuário não encontrado');
 
@@ -226,8 +228,8 @@ begin
     .Post('/users', @CreateUser)
     .SetSummary('Cadastrar novo usuário')
     .AddTags('Usuários')
-    .SetBodyContent(TUserInsert.SwaggerSchema(), True, ApplicationJson, 'Dados de cadastro')
-    .AddResponse(StatusCreated, 'Usuário criado com sucesso', TUserResponse.SwaggerSchema())
+    .SetBodyContent(TUserInsert.SwaggerSchemaObject(), True, ApplicationJson, 'Dados de cadastro')
+    .AddResponse(StatusCreated, 'Usuário criado com sucesso', TUserResponse.SwaggerSchemaObject())
     .AddResponse(StatusBadRequest, 'Falha na validação dos campos');
 end;
 
@@ -235,6 +237,83 @@ initialization
   TUserRouter.Register;
 end.
 ```
+
+---
+
+## 📖 Documentação OpenAPI 3.1 & Registro Canônico de Schemas
+
+O Zenith possui integração profunda e nativa entre o pipeline HTTP, o motor de documentação [Swagger4Laz](src/swagger4laz) e os modelos fortemente tipados do [DeltaModel](src/deltamodel).
+
+### 1. Registro Automático em `components.schemas`
+Na inicialização da aplicação, o Zenith registra automaticamente um canal bidirecional entre o DeltaModel e o Router:
+
+```pascal
+// Executado automaticamente na unit Zenith.App:
+SetDeltaModelRegisterSchemaProc(@ZenithRegisterModelProc);
+```
+
+Dessa forma, sempre que um modelo for referenciado em qualquer rota da API, ele é registrado automaticamente no dicionário `components.schemas` do OpenAPI 3.1 de forma idempotente e thread-safe.
+
+### 2. Métodos Semânticos de Schema no DeltaModel
+Evite o uso do método legado `SwaggerSchema()`. Utilize os métodos explícitos e fortemente tipados:
+
+| Método | Tipo no Schema | Formato OpenAPI |
+| :--- | :--- | :--- |
+| `TModel.SwaggerSchemaObject(AddExamples)` | `object` | Schema inline completo do objeto |
+| `TModel.SwaggerSchemaArray(AddExamples)` | `array` | Schema inline de lista (`items: { type: object }`) |
+| `TModel.SwaggerSchemaPaginated(AddExamples)` | `object` | Envelope paginado (`items`, `page`, `page_size`, `total_records`, `total_pages`) |
+| `TModel.SwaggerSchemaRefObject` | `$ref` | `{"$ref": "#/components/schemas/ModelName"}` |
+| `TModel.SwaggerSchemaRefArray` | `array` | `{"type": "array", "items": {"$ref": "#/components/schemas/ModelName"}}` |
+| `TModel.SwaggerSchemaRefPaginated` | `object` | Envelope paginado contendo referências `$ref` em `items` |
+
+### 3. Exemplo Prático em Rotas Corporativas
+
+```pascal
+procedure RegisterProductRoutes;
+begin
+  // GET /produtos - Lista paginada referenciando components.schemas
+  Router
+    .Get('/produtos', @ListProducts)
+    .SetSummary('Listar produtos com paginação')
+    .AddTags('Produtos')
+    .AddQueryParam('page', False, 'integer', '1', 'Página atual')
+    .AddQueryParam('page_size', False, 'integer', '20', 'Registros por página')
+    .AddResponse(StatusOK, 'Lista paginada', TProductResponse.SwaggerSchemaRefPaginated);
+
+  // POST /produtos - Cadastro com Request Body e Response tipados
+  Router
+    .Post('/produtos', @CreateProduct)
+    .SetSummary('Criar novo produto')
+    .AddTags('Produtos')
+    .SetBodyContent(TProductInsert.SwaggerSchemaObject(), True, ApplicationJson, 'Dados do produto')
+    .AddResponse(StatusCreated, 'Produto criado', TProductResponse.SwaggerSchemaRefObject)
+    .AddResponse(StatusBadRequest, 'Erro de validação');
+end;
+```
+
+---
+
+## ⚡ Arquitetura de Alta Performance do Zenith
+
+Para suportar ambientes corporativos de alta demanda e múltiplos tenants concorrentes, o ecossistema Zenith incorpora inovações de baixo nível que eliminam os gargalos tradicionais do Free Pascal:
+
+### 1. `TDeltaFastJsonStreamer`: Streaming JSON Direto (Zero-DOM)
+Ao contrário das abordagens tradicionais (`fpjson`) que instanciam árvores de objetos `TJSONObject` e `TJSONData` em heap para cada registro retornado, o Zenith utiliza streaming contíguo de bytes:
+- **Zero Alocação DOM**: O payload JSON é gerado diretamente para buffers `RawByteString`, reduzindo substancialmente o uso de memória e a fragmentação de heap.
+- **Formatação de Ponto Fixo (`ffFixed`) sem Notação Científica**: O `fpjson` padrão do FPC formata valores numéricos flutuantes grandes ou pequenos em notação científica (ex.: `1.5E+06` ou `1.0E-04`), quebrando parsers de clientes JavaScript e mobile. O `TDeltaFastJsonStreamer` formata floats estritamente em ponto fixo (`FloatToStrF` com `ffFixed`) com remoção inteligente de zeros supérfluos, garantindo compatibilidade contábil e fiscal de alta precisão.
+
+### 2. `TColumnBindingMap`: Binding Direto ORM sem Variant Boxing
+A extração de dados do `TDataSet` convencional para objetos de negócio tradicionalmente envolve chamadas a propriedades do tipo `Variant` (`Field.Value`), gerando overhead de despacho e boxing OLE.
+
+Com o `TColumnBindingMap`:
+- O mapeamento entre colunas SQL e propriedades do modelo é pré-calculado uma única vez na primeira linha do dataset.
+- A leitura dos dados é realizada diretamente através dos métodos tipados nativos do driver (`ADS.Fields[I].AsLargeInt`, `ADS.Fields[I].AsString`, `ADS.Fields[I].AsFloat`, etc.).
+- Elimina completamente o uso de Variants em consultas com milhares de registros.
+
+### 3. `TRTTICache` & `TModelMetadata`: Reflexão Estática em Tempo de Execução
+A inspeção repetida de RTTI (`TypInfo`) durante serialização, validação e DDL do ORM é evitada através de cache thread-safe em memória:
+- As propriedades publicadas de cada classe `TDeltaModel` são inspecionadas e indexadas apenas uma vez.
+- As buscas de metadados durante a execução das requisições ocorrem com custo $O(1)$.
 
 ---
 
