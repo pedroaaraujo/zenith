@@ -174,9 +174,10 @@ begin
 
   User := TUserResponse.Create;
   try
-    User.id.Value := UserId;
-    User.name.Value := 'Carlos Eduardo';
-    User.email.Value := 'carlos@empresa.com';
+    // Acesso tipado direto sem boxing de Variant
+    User.id.AsInteger := UserId;
+    User.name.AsText := 'Carlos Eduardo';
+    User.email.AsText := 'carlos@empresa.com';
 
     AResponse.Code := StatusOK;
     AResponse.ContentType := ApplicationJson;
@@ -198,9 +199,10 @@ begin
     InputData.FromJson(ARequest.Content);
     InputData.Validate; // Dispara EDeltaValidation em caso de erro
 
-    NewUser.id.Value := 101;
-    NewUser.name.Value := InputData.name.Value;
-    NewUser.email.Value := InputData.email.Value;
+    // Atribuição tipada direta sem boxing de Variant
+    NewUser.id.AsInteger := 101;
+    NewUser.name.AsText := InputData.name.AsString;
+    NewUser.email.AsText := InputData.email.AsString;
 
     AResponse.Code := StatusCreated;
     AResponse.ContentType := ApplicationJson;
@@ -213,23 +215,23 @@ end;
 
 class procedure TUserRouter.Register;
 begin
-  // Documentação e vinculação GET /users/:id
+  // Documentação e vinculação GET /users/:id utilizando referência canônica $ref
   Router
     .Get('/users/:id', @GetUser)
     .SetSummary('Buscar usuário por ID')
     .AddTags('Usuários')
     .AddPathParam('id', True, 'integer', '1', 'ID do usuário')
-    .AddResponse(StatusOK, 'Usuário localizado', TUserResponse.SwaggerSchemaObject())
+    .AddResponseRef(StatusOK, 'UserResponse', 'Usuário localizado')
     .AddResponse(StatusBadRequest, 'Requisição inválida')
     .AddResponse(StatusNotFound, 'Usuário não encontrado');
 
-  // Documentação e vinculação POST /users
+  // Documentação e vinculação POST /users com payload e resposta referenciando components.schemas
   Router
     .Post('/users', @CreateUser)
     .SetSummary('Cadastrar novo usuário')
     .AddTags('Usuários')
-    .SetBodyContent(TUserInsert.SwaggerSchemaObject(), True, ApplicationJson, 'Dados de cadastro')
-    .AddResponse(StatusCreated, 'Usuário criado com sucesso', TUserResponse.SwaggerSchemaObject())
+    .SetBodyContentRef('UserInsert', True, ApplicationJson, 'Dados de cadastro')
+    .AddResponseRef(StatusCreated, 'UserResponse', 'Usuário criado com sucesso')
     .AddResponse(StatusBadRequest, 'Falha na validação dos campos');
 end;
 
