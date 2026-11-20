@@ -488,16 +488,15 @@ server {
 
 ---
 
-## 📁 Demonstração Incluída
+## 📁 Demonstrações Incluídas
 
-Consulte [`demo/00-todolist`](demo/00-todolist) para uma API persistente em SQLite:
-- `Zenith.App` e `SwaggerRouter`
-- `DeltaModel`, migrations automáticas e pool de conexões
-- Rotas REST para listar, criar, buscar e remover tarefas.
-
-O arquivo SQLite é criado junto ao executável por padrão. Configure
-`ZENITH_TODO_DATABASE` com outro caminho ou use `ZENITH_TODO_DATABASE_URL` para
-informar uma URL de conexão completa.
+1. [`demo/00-todolist`](demo/00-todolist) — API básica de tarefas em SQLite (CRUD com Swagger UI e migrações automáticas).
+2. [`demo/01-order-management`](demo/01-order-management) — API corporativa completa de Varejo e Gestão de Pedidos (RMS Starter):
+   - Modelagem de domínio com `TProduct`, `TCustomer`, `TSaleOrder` e `TSaleOrderItem` com mapeamento relacional 1:N (`Include('items')`).
+   - RBAC declarativo com `TZRBACPolicy<TProduct>` restringindo mutações a administradores.
+   - Agrupamento fluente de rotas via `SwaggerRouter.Group('/api/v1/orders')`.
+   - Transações atômicas de negócio: validação de crédito, baixa de estoque em tempo real e cancelamento com estorno.
+   - Documentação trilíngue ([Português](demo/01-order-management/README.pt-BR.md), [English](demo/01-order-management/README.md), [Español](demo/01-order-management/README.es-ES.md)).
 
 ---
 

@@ -11,3 +11,7 @@ backup/
 lib/
 .vscode/
 todolist
+order_management
+*.sqlite
+*.sqlite3
+*.db

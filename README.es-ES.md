@@ -487,12 +487,15 @@ server {
 
 ---
 
-## 📁 Demostración Incluida
+## 📁 Demostraciones Incluidas
 
-Examine [`demo/00-todolist`](demo/00-todolist) para ver una API REST completa y funcional con SQLite:
-- Configuración de `Zenith.App` y `SwaggerRouter`
-- Esquema de `DeltaModel`, migraciones automáticas y pool de conexiones
-- Endpoints REST completos para listar, insertar, consultar, actualizar y eliminar tareas.
+1. [`demo/00-todolist`](demo/00-todolist) — API básica de tareas con SQLite (CRUD completo con OpenAPI 3.1 y Swagger UI).
+2. [`demo/01-order-management`](demo/01-order-management) — API empresarial de Comercio y Gestión de Pedidos (RMS Starter):
+   - Modelado de dominio: `TProduct`, `TCustomer`, `TSaleOrder` y `TSaleOrderItem` con mapeo relacional 1:N (`Include('items')`).
+   - RBAC declarativo con `TZRBACPolicy<TProduct>` para restringir mutaciones al rol `admin`.
+   - Agrupación fluida de rutas con `SwaggerRouter.Group('/api/v1/orders')`.
+   - Transacciones atómicas: validación de límite de crédito, reserva de inventario en tiempo real y cancelación con reposición de stock.
+   - Documentación en tres idiomas ([Español](demo/01-order-management/README.es-ES.md), [English](demo/01-order-management/README.md), [Português](demo/01-order-management/README.pt-BR.md)).
 
 ---
 
