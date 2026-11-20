@@ -47,6 +47,35 @@ function DetailBadRequest: string;
 function TitleUnprocessableEntity: string;
 function DetailUnprocessableEntity: string;
 
+// Generic CRUD router messages and Swagger descriptions (TASK #1230 & i18n)
+function MsgCrudInvalidId: string;
+function MsgCrudInvalidJson: string;
+function MsgCrudCouldNotInsert: string;
+function MsgCrudCouldNotUpdate: string;
+
+function MsgCrudSummaryList(const ATag: string): string;
+function MsgCrudParamPage: string;
+function MsgCrudParamPageSize: string;
+function MsgCrudParamSort: string;
+function MsgCrudResponseListOK: string;
+function MsgCrudResponseBadRequest: string;
+
+function MsgCrudSummaryGetById(const ATag: string): string;
+function MsgCrudParamId: string;
+function MsgCrudResponseGetOK: string;
+
+function MsgCrudSummaryCreate(const ATag: string): string;
+function MsgCrudPayload: string;
+function MsgCrudResponseCreated: string;
+function MsgCrudResponseInvalidPayload: string;
+function MsgCrudResponseValidation: string;
+
+function MsgCrudSummaryUpdate(const ATag: string): string;
+function MsgCrudResponseUpdated: string;
+
+function MsgCrudSummaryDelete(const ATag: string): string;
+function MsgCrudResponseDeleted: string;
+
 implementation
 
 var
@@ -163,6 +192,109 @@ const
     'The request was well-formed but contains semantic errors.',
     'A requisição está bem formatada mas contém erros semânticos.',
     'La solicitud estaba bien formada pero contiene errores semánticos.'
+  );
+
+  // CRUD router messages
+  STR_CRUD_INVALID_ID: array[TZenithLocale] of string = (
+    'Invalid resource ID.',
+    'Identificador de recurso inválido.',
+    'Identificador de recurso no válido.'
+  );
+
+  STR_CRUD_INVALID_JSON: array[TZenithLocale] of string = (
+    'Request body must contain valid JSON: ',
+    'O corpo da requisição deve conter JSON válido: ',
+    'El cuerpo de la solicitud debe contener JSON válido: '
+  );
+
+  STR_CRUD_COULD_NOT_INSERT: array[TZenithLocale] of string = (
+    'Could not insert resource.',
+    'Não foi possível inserir o recurso.',
+    'No se pudo insertar el recurso.'
+  );
+
+  STR_CRUD_COULD_NOT_UPDATE: array[TZenithLocale] of string = (
+    'Could not update resource.',
+    'Não foi possível atualizar o recurso.',
+    'No se pudo actualizar el recurso.'
+  );
+
+  STR_CRUD_PARAM_PAGE: array[TZenithLocale] of string = (
+    'Page number',
+    'Número da página',
+    'Número de página'
+  );
+
+  STR_CRUD_PARAM_PAGE_SIZE: array[TZenithLocale] of string = (
+    'Records per page',
+    'Registros por página',
+    'Registros por página'
+  );
+
+  STR_CRUD_PARAM_SORT: array[TZenithLocale] of string = (
+    'Field to order by',
+    'Campo para ordenação',
+    'Campo para ordenar'
+  );
+
+  STR_CRUD_RESPONSE_LIST_OK: array[TZenithLocale] of string = (
+    'Successful operation',
+    'Operação realizada com sucesso',
+    'Operación exitosa'
+  );
+
+  STR_CRUD_RESPONSE_BAD_REQUEST: array[TZenithLocale] of string = (
+    'Invalid query parameters',
+    'Parâmetros de consulta inválidos',
+    'Parámetros de consulta no válidos'
+  );
+
+  STR_CRUD_PARAM_ID: array[TZenithLocale] of string = (
+    'Resource ID',
+    'Identificador do recurso',
+    'Identificador del recurso'
+  );
+
+  STR_CRUD_RESPONSE_GET_OK: array[TZenithLocale] of string = (
+    'Resource found',
+    'Recurso encontrado',
+    'Recurso encontrado'
+  );
+
+  STR_CRUD_PAYLOAD: array[TZenithLocale] of string = (
+    'Resource payload',
+    'Dados do recurso',
+    'Datos del recurso'
+  );
+
+  STR_CRUD_RESPONSE_CREATED: array[TZenithLocale] of string = (
+    'Resource created',
+    'Recurso criado com sucesso',
+    'Recurso creado con éxito'
+  );
+
+  STR_CRUD_RESPONSE_INVALID_PAYLOAD: array[TZenithLocale] of string = (
+    'Invalid payload',
+    'Carga útil inválida',
+    'Carga útil no válida'
+  );
+
+  STR_CRUD_RESPONSE_VALIDATION: array[TZenithLocale] of string = (
+    'Validation failed',
+    'Falha na validação',
+    'Falló la validación'
+  );
+
+  STR_CRUD_RESPONSE_UPDATED: array[TZenithLocale] of string = (
+    'Resource updated',
+    'Recurso atualizado com sucesso',
+    'Recurso actualizado con éxito'
+  );
+
+  STR_CRUD_RESPONSE_DELETED: array[TZenithLocale] of string = (
+    'Resource deleted',
+    'Recurso excluído com sucesso',
+    'Recurso eliminado con éxito'
   );
 
 procedure SetZenithLocale(ALocale: TZenithLocale);
@@ -291,6 +423,141 @@ end;
 function DetailUnprocessableEntity: string;
 begin
   Result := STR_DETAIL_UNPROCESSABLE[GCurrentLocale];
+end;
+
+function MsgCrudInvalidId: string;
+begin
+  Result := STR_CRUD_INVALID_ID[GCurrentLocale];
+end;
+
+function MsgCrudInvalidJson: string;
+begin
+  Result := STR_CRUD_INVALID_JSON[GCurrentLocale];
+end;
+
+function MsgCrudCouldNotInsert: string;
+begin
+  Result := STR_CRUD_COULD_NOT_INSERT[GCurrentLocale];
+end;
+
+function MsgCrudCouldNotUpdate: string;
+begin
+  Result := STR_CRUD_COULD_NOT_UPDATE[GCurrentLocale];
+end;
+
+function MsgCrudSummaryList(const ATag: string): string;
+begin
+  case GCurrentLocale of
+    zlPtBR: Result := 'Listar registros de ' + ATag;
+    zlEsES: Result := 'Listar registros de ' + ATag;
+  else
+    Result := 'List ' + ATag + ' records';
+  end;
+end;
+
+function MsgCrudParamPage: string;
+begin
+  Result := STR_CRUD_PARAM_PAGE[GCurrentLocale];
+end;
+
+function MsgCrudParamPageSize: string;
+begin
+  Result := STR_CRUD_PARAM_PAGE_SIZE[GCurrentLocale];
+end;
+
+function MsgCrudParamSort: string;
+begin
+  Result := STR_CRUD_PARAM_SORT[GCurrentLocale];
+end;
+
+function MsgCrudResponseListOK: string;
+begin
+  Result := STR_CRUD_RESPONSE_LIST_OK[GCurrentLocale];
+end;
+
+function MsgCrudResponseBadRequest: string;
+begin
+  Result := STR_CRUD_RESPONSE_BAD_REQUEST[GCurrentLocale];
+end;
+
+function MsgCrudSummaryGetById(const ATag: string): string;
+begin
+  case GCurrentLocale of
+    zlPtBR: Result := 'Obter ' + ATag + ' por ID';
+    zlEsES: Result := 'Obtener ' + ATag + ' por ID';
+  else
+    Result := 'Get ' + ATag + ' by ID';
+  end;
+end;
+
+function MsgCrudParamId: string;
+begin
+  Result := STR_CRUD_PARAM_ID[GCurrentLocale];
+end;
+
+function MsgCrudResponseGetOK: string;
+begin
+  Result := STR_CRUD_RESPONSE_GET_OK[GCurrentLocale];
+end;
+
+function MsgCrudSummaryCreate(const ATag: string): string;
+begin
+  case GCurrentLocale of
+    zlPtBR: Result := 'Criar novo(a) ' + ATag;
+    zlEsES: Result := 'Crear nuevo(a) ' + ATag;
+  else
+    Result := 'Create new ' + ATag;
+  end;
+end;
+
+function MsgCrudPayload: string;
+begin
+  Result := STR_CRUD_PAYLOAD[GCurrentLocale];
+end;
+
+function MsgCrudResponseCreated: string;
+begin
+  Result := STR_CRUD_RESPONSE_CREATED[GCurrentLocale];
+end;
+
+function MsgCrudResponseInvalidPayload: string;
+begin
+  Result := STR_CRUD_RESPONSE_INVALID_PAYLOAD[GCurrentLocale];
+end;
+
+function MsgCrudResponseValidation: string;
+begin
+  Result := STR_CRUD_RESPONSE_VALIDATION[GCurrentLocale];
+end;
+
+function MsgCrudSummaryUpdate(const ATag: string): string;
+begin
+  case GCurrentLocale of
+    zlPtBR: Result := 'Atualizar ' + ATag + ' existente';
+    zlEsES: Result := 'Actualizar ' + ATag + ' existente';
+  else
+    Result := 'Update existing ' + ATag;
+  end;
+end;
+
+function MsgCrudResponseUpdated: string;
+begin
+  Result := STR_CRUD_RESPONSE_UPDATED[GCurrentLocale];
+end;
+
+function MsgCrudSummaryDelete(const ATag: string): string;
+begin
+  case GCurrentLocale of
+    zlPtBR: Result := 'Excluir ' + ATag + ' por ID';
+    zlEsES: Result := 'Eliminar ' + ATag + ' por ID';
+  else
+    Result := 'Delete ' + ATag + ' by ID';
+  end;
+end;
+
+function MsgCrudResponseDeleted: string;
+begin
+  Result := STR_CRUD_RESPONSE_DELETED[GCurrentLocale];
 end;
 
 initialization

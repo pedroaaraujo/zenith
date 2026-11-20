@@ -39,7 +39,7 @@ var
   Val: Int64;
 begin
   if not TryStrToInt64(ARequest.RouteParams['id'], Val) or (Val < 1) then
-    raise EBadRequest.Create('Invalid resource ID.');
+    raise EBadRequest.Create(MsgCrudInvalidId);
   Result := Val;
 end;
 
@@ -112,7 +112,7 @@ begin
     Item := Query.FindById(IdVal);
     try
       if Item = nil then
-        raise EResourceNotFound.Create('Resource not found.');
+        raise EResourceNotFound.Create(TitleNotFound);
       AResponse.Code := StatusOK;
       AResponse.ContentType := 'application/json; charset=utf-8';
       AResponse.Content := Item.ToJson;
@@ -136,7 +136,7 @@ begin
       Item.FromJson(ARequest.Content);
     except
       on E: Exception do
-        raise EBadRequest.Create('Request body must contain valid JSON: ' + E.Message);
+        raise EBadRequest.Create(MsgCrudInvalidJson + E.Message);
     end;
 
     Item.Validate;
@@ -145,7 +145,7 @@ begin
     Query := TDeltaQuery<T>.Create(Lease);
     try
       if not Query.Insert(Item) then
-        raise EServerError.Create('Could not insert resource.');
+        raise EServerError.Create(MsgCrudCouldNotInsert);
       AResponse.Code := StatusCreated;
       AResponse.ContentType := 'application/json; charset=utf-8';
       AResponse.Content := Item.ToJson;
@@ -171,7 +171,7 @@ begin
   try
     ExistingItem := Query.FindById(IdVal);
     if ExistingItem = nil then
-      raise EResourceNotFound.Create('Resource not found.');
+      raise EResourceNotFound.Create(TitleNotFound);
     try
       InputItem := T.Create;
       try
@@ -179,7 +179,7 @@ begin
           InputItem.FromJson(ARequest.Content);
         except
           on E: Exception do
-            raise EBadRequest.Create('Request body must contain valid JSON: ' + E.Message);
+            raise EBadRequest.Create(MsgCrudInvalidJson + E.Message);
         end;
 
         InputItem.Validate;
@@ -190,7 +190,7 @@ begin
           SetOrdProp(ExistingItem, Meta.PKPropName, IdVal);
 
         if not Query.Update(ExistingItem) then
-          raise EServerError.Create('Could not update resource.');
+          raise EServerError.Create(MsgCrudCouldNotUpdate);
 
         AResponse.Code := StatusOK;
         AResponse.ContentType := 'application/json; charset=utf-8';
@@ -214,7 +214,7 @@ begin
   IdVal := ParseId(ARequest);
   Lease := FPool.Acquire;
   if not Lease.DeleteById(T, IdVal) then
-    raise EResourceNotFound.Create('Resource not found.');
+    raise EResourceNotFound.Create(TitleNotFound);
   AResponse.Code := StatusNoContent;
 end;
 
@@ -249,52 +249,52 @@ begin
   Router
     .Get(CleanPath, GetAll)
     .AddTag(ATag)
-    .SetSummary('List ' + ATag + ' records')
-    .AddQueryParam('page', False, 'integer', '1', 'Page number')
-    .AddQueryParam('page_size', False, 'integer', '50', 'Records per page')
-    .AddQueryParam('sort', False, 'string', '', 'Field to order by')
-    .AddResponseRefArray(StatusOK, ModelName, 'Successful operation')
-    .AddResponse(StatusBadRequest, 'Invalid query parameters');
+    .SetSummary(MsgCrudSummaryList(ATag))
+    .AddQueryParam('page', False, 'integer', '1', MsgCrudParamPage)
+    .AddQueryParam('page_size', False, 'integer', '50', MsgCrudParamPageSize)
+    .AddQueryParam('sort', False, 'string', '', MsgCrudParamSort)
+    .AddResponseRefArray(StatusOK, ModelName, MsgCrudResponseListOK)
+    .AddResponse(StatusBadRequest, MsgCrudResponseBadRequest);
 
   // 2. GET /base/:id
   Router
     .Get(CleanPath + '/:id', GetById)
     .AddTag(ATag)
-    .SetSummary('Get ' + ATag + ' by ID')
-    .AddPathParam('id', True, 'integer', '1', 'Resource ID')
-    .AddResponseRef(StatusOK, ModelName, 'Resource found')
-    .AddResponse(StatusNotFound, 'Resource not found');
+    .SetSummary(MsgCrudSummaryGetById(ATag))
+    .AddPathParam('id', True, 'integer', '1', MsgCrudParamId)
+    .AddResponseRef(StatusOK, ModelName, MsgCrudResponseGetOK)
+    .AddResponse(StatusNotFound, TitleNotFound);
 
   // 3. POST /base
   Router
     .Post(CleanPath, CreateItem)
     .AddTag(ATag)
-    .SetSummary('Create new ' + ATag)
-    .SetBodyContentRef(ModelName, True, 'application/json', 'Resource payload')
-    .AddResponseRef(StatusCreated, ModelName, 'Resource created')
-    .AddResponse(StatusBadRequest, 'Invalid payload')
-    .AddResponse(StatusUnprocessableEntity, 'Validation failed');
+    .SetSummary(MsgCrudSummaryCreate(ATag))
+    .SetBodyContentRef(ModelName, True, 'application/json', MsgCrudPayload)
+    .AddResponseRef(StatusCreated, ModelName, MsgCrudResponseCreated)
+    .AddResponse(StatusBadRequest, MsgCrudResponseInvalidPayload)
+    .AddResponse(StatusUnprocessableEntity, MsgCrudResponseValidation);
 
   // 4. PUT /base/:id
   Router
     .Put(CleanPath + '/:id', UpdateItem)
     .AddTag(ATag)
-    .SetSummary('Update existing ' + ATag)
-    .AddPathParam('id', True, 'integer', '1', 'Resource ID')
-    .SetBodyContentRef(ModelName, True, 'application/json', 'Resource payload')
-    .AddResponseRef(StatusOK, ModelName, 'Resource updated')
-    .AddResponse(StatusBadRequest, 'Invalid payload')
-    .AddResponse(StatusNotFound, 'Resource not found')
-    .AddResponse(StatusUnprocessableEntity, 'Validation failed');
+    .SetSummary(MsgCrudSummaryUpdate(ATag))
+    .AddPathParam('id', True, 'integer', '1', MsgCrudParamId)
+    .SetBodyContentRef(ModelName, True, 'application/json', MsgCrudPayload)
+    .AddResponseRef(StatusOK, ModelName, MsgCrudResponseUpdated)
+    .AddResponse(StatusBadRequest, MsgCrudResponseInvalidPayload)
+    .AddResponse(StatusNotFound, TitleNotFound)
+    .AddResponse(StatusUnprocessableEntity, MsgCrudResponseValidation);
 
   // 5. DELETE /base/:id
   Router
     .Delete(CleanPath + '/:id', DeleteItem)
     .AddTag(ATag)
-    .SetSummary('Delete ' + ATag + ' by ID')
-    .AddPathParam('id', True, 'integer', '1', 'Resource ID')
-    .AddResponse(StatusNoContent, 'Resource deleted')
-    .AddResponse(StatusNotFound, 'Resource not found');
+    .SetSummary(MsgCrudSummaryDelete(ATag))
+    .AddPathParam('id', True, 'integer', '1', MsgCrudParamId)
+    .AddResponse(StatusNoContent, MsgCrudResponseDeleted)
+    .AddResponse(StatusNotFound, TitleNotFound);
 end;
 
 end.
