@@ -57,6 +57,12 @@ Type
     function GetLookupHostNames : Boolean;
     Procedure SetLookupHostnames(Avalue : Boolean);
     procedure SetUseSSL(AValue: Boolean);
+    function GetUseThreadPool: Boolean;
+    function GetThreadPoolSize: Integer;
+    function GetThreadPoolQueueLimit: Integer;
+    procedure SetUseThreadPool(AValue: Boolean);
+    procedure SetThreadPoolSize(AValue: Integer);
+    procedure SetThreadPoolQueueLimit(AValue: Integer);
   protected
     procedure HTTPHandleRequest(Sender: TObject; var ARequest: TFPHTTPConnectionRequest; var AResponse: TFPHTTPConnectionResponse); virtual;
     procedure HandleRequestError(Sender: TObject; E: Exception); virtual;
@@ -81,6 +87,9 @@ Type
     Property UseSSL : Boolean Read GetUseSSL Write SetUseSSL;
     Property HostName : String Read GetHostName Write SetHostName;
     Property HTTPServer : TEmbeddedHttpServer Read FServer;
+    Property UseThreadPool : Boolean Read GetUseThreadPool Write SetUseThreadPool;
+    Property ThreadPoolSize : Integer Read GetThreadPoolSize Write SetThreadPoolSize;
+    Property ThreadPoolQueueLimit : Integer Read GetThreadPoolQueueLimit Write SetThreadPoolQueueLimit;
   end;
 
   { TCustomHTTPApplication }
@@ -109,6 +118,12 @@ Type
     procedure SetQueueSize(const AValue: Word);
     procedure SetThreaded(const AValue: Boolean);
     procedure SetUseSSL(AValue: Boolean);
+    function GetUseThreadPool: Boolean;
+    function GetThreadPoolSize: Integer;
+    function GetThreadPoolQueueLimit: Integer;
+    procedure SetUseThreadPool(AValue: Boolean);
+    procedure SetThreadPoolSize(AValue: Integer);
+    procedure SetThreadPoolQueueLimit(AValue: Integer);
   protected
     function InitializeWebHandler: TWebHandler; override;
   Public
@@ -125,6 +140,9 @@ Type
     Property UseSSL : Boolean Read GetUseSSL Write SetUseSSL;
     Property HostName : String Read GetHostName Write SetHostName;
     Property CertificateData : TCertificateData Read GetCertificateData;
+    Property UseThreadPool : Boolean Read GetUseThreadPool Write SetUseThreadPool;
+    Property ThreadPoolSize : Integer Read GetThreadPoolSize Write SetThreadPoolSize;
+    Property ThreadPoolQueueLimit : Integer Read GetThreadPoolQueueLimit Write SetThreadPoolQueueLimit;
   end;
 
 Implementation
@@ -452,6 +470,66 @@ begin
     FreeAndNil(FServer);
     end;
   inherited Destroy;
+end;
+
+function TFPHTTPServerHandler.GetUseThreadPool: Boolean;
+begin
+  Result := FServer.UseThreadPool;
+end;
+
+procedure TFPHTTPServerHandler.SetUseThreadPool(AValue: Boolean);
+begin
+  FServer.UseThreadPool := AValue;
+end;
+
+function TFPHTTPServerHandler.GetThreadPoolSize: Integer;
+begin
+  Result := FServer.ThreadPoolSize;
+end;
+
+procedure TFPHTTPServerHandler.SetThreadPoolSize(AValue: Integer);
+begin
+  FServer.ThreadPoolSize := AValue;
+end;
+
+function TFPHTTPServerHandler.GetThreadPoolQueueLimit: Integer;
+begin
+  Result := FServer.ThreadPoolQueueLimit;
+end;
+
+procedure TFPHTTPServerHandler.SetThreadPoolQueueLimit(AValue: Integer);
+begin
+  FServer.ThreadPoolQueueLimit := AValue;
+end;
+
+function TCustomHTTPApplication.GetUseThreadPool: Boolean;
+begin
+  Result := HTTPHandler.UseThreadPool;
+end;
+
+procedure TCustomHTTPApplication.SetUseThreadPool(AValue: Boolean);
+begin
+  HTTPHandler.UseThreadPool := AValue;
+end;
+
+function TCustomHTTPApplication.GetThreadPoolSize: Integer;
+begin
+  Result := HTTPHandler.ThreadPoolSize;
+end;
+
+procedure TCustomHTTPApplication.SetThreadPoolSize(AValue: Integer);
+begin
+  HTTPHandler.ThreadPoolSize := AValue;
+end;
+
+function TCustomHTTPApplication.GetThreadPoolQueueLimit: Integer;
+begin
+  Result := HTTPHandler.ThreadPoolQueueLimit;
+end;
+
+procedure TCustomHTTPApplication.SetThreadPoolQueueLimit(AValue: Integer);
+begin
+  HTTPHandler.ThreadPoolQueueLimit := AValue;
 end;
 
 end.
