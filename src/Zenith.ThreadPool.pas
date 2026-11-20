@@ -11,7 +11,7 @@ type
   TZenithThreadPool = class;
   TZenithWorkerThread = class;
 
-  { TZenithConnectionQueue: Fila FIFO thread-safe de alta performance com circular ring buffer }
+  { TZenithConnectionQueue: High-performance thread-safe FIFO queue backed by a circular ring buffer }
   TZenithConnectionQueue = class
   private
     FItems: array of TObject;
@@ -34,7 +34,7 @@ type
     property MaxCapacity: Integer read FMaxCapacity write FMaxCapacity;
   end;
 
-  { TZenithWorkerThread: Worker thread pré-alocada com espera em TEvent (0% CPU ocioso) }
+  { TZenithWorkerThread: Pre-allocated worker thread waiting on TEvent (0% idle CPU) }
   TZenithWorkerThread = class(TThread)
   private
     FPool: TZenithThreadPool;
@@ -56,7 +56,7 @@ type
   TZenithWorkHandler = procedure(AItem: TObject) of object;
   TZenithWorkerErrorHandler = procedure(AWorker: TZenithWorkerThread; AItem: TObject; E: Exception) of object;
 
-  { TZenithThreadPool: Gerenciador de pool de workers pré-alocados de alta performance }
+  { TZenithThreadPool: High-performance pre-allocated worker pool manager }
   TZenithThreadPool = class
   private
     FQueue: TZenithConnectionQueue;
@@ -127,7 +127,7 @@ begin
 
   CPUs := GetCPUCount;
   if CPUs < 1 then CPUs := 1;
-  // Para servidores HTTP I/O bound: 4 workers por core, com piso de 16 e teto razoável de 128
+  // For I/O-bound HTTP servers: 4 workers per core, floor of 16 and cap of 128
   Result := CPUs * 4;
   if Result < 16 then Result := 16;
   if Result > 128 then Result := 128;
@@ -247,7 +247,7 @@ begin
         try
           Item.Free;
         except
-          // Previne que exceções de destruição corrompam a limpeza da fila
+          // Prevent destructor exceptions from corrupting queue cleanup
         end;
       end;
     end;
@@ -280,7 +280,7 @@ begin
   // ManualReset = True, InitialState = False
   FEvent := TEvent.Create(nil, True, False, '');
   FreeOnTerminate := False;
-  inherited Create(False); // Inicia imediatamente
+  inherited Create(False); // Start immediately
 end;
 
 destructor TZenithWorkerThread.Destroy;
@@ -301,7 +301,7 @@ var
 begin
   while not Terminated do
   begin
-    // Tenta obter um item da fila ou registra como ocioso
+    // Try to pop an item from the queue or register as idle
     if FPool.PopItem(Self, Item) then
     begin
       FIsBusy := True;
@@ -317,16 +317,16 @@ begin
         Inc(FProcessedRequests);
         InterlockedIncrement64(FPool.FTotalProcessed);
       end;
-      // Havendo mais conexões na fila, processa o próximo imediatamente sem esperar
+      // If more connections are queued, process the next one immediately without waiting
       Continue;
     end;
 
     if Terminated then
       Break;
 
-    // Fila estava vazia; thread registrou-se como ociosa em PopItem.
-    // Aguarda em TEvent (0% CPU ocioso no kernel).
-    // Ao receber novo trabalho via Signal ou ao parar o pool, o evento é sinalizado.
+    // Queue was empty; thread registered itself as idle in PopItem.
+    // Wait on TEvent (0% idle CPU in kernel).
+    // When new work arrives via Signal or the pool stops, the event is signaled.
     FEvent.WaitFor(INFINITE);
   end;
 end;
@@ -400,7 +400,7 @@ begin
     for I := 0 to OldCount - 1 do
       OldWorkers[I] := FWorkers[I];
 
-    // Sinaliza terminação e acorda todos os workers
+    // Signal termination and wake all workers
     for I := 0 to OldCount - 1 do
     begin
       if Assigned(OldWorkers[I]) then
@@ -413,7 +413,7 @@ begin
     FLock.Leave;
   end;
 
-  // Aguarda finalização de cada thread fora do lock
+  // Wait for each thread to finish outside the lock
   for I := 0 to OldCount - 1 do
   begin
     if Assigned(OldWorkers[I]) then
@@ -452,7 +452,7 @@ begin
       Exit;
     end;
 
-    // Fila vazia: registra worker como ocioso e reseta seu evento de espera
+    // Empty queue: register worker as idle and reset its wait event
     RegisterWorkerIdle(AWorker);
     AWorker.FEvent.ResetEvent;
   finally
@@ -496,7 +496,7 @@ begin
     Inc(FTotalQueued);
     Result := True;
 
-    // Se houver worker ocioso aguardando, seleciona-o para acordar
+    // If an idle worker is waiting, pick it to wake up
     if FIdleCount > 0 then
     begin
       Dec(FIdleCount);
@@ -507,7 +507,7 @@ begin
     FLock.Leave;
   end;
 
-  // Sinaliza fora do lock para evitar contenção de mutex ao acordar o worker
+  // Signal outside the lock to avoid mutex contention when waking the worker
   if Assigned(WorkerToSignal) then
     WorkerToSignal.Signal;
 end;

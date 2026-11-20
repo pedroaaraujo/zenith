@@ -145,7 +145,7 @@ type
     FBeforeRequest: THTTPRouteRequestEvent;
     FRouteOptions: TRouteOptions;
     FRoutes: THTTPRouteList;
-    FRootNode: TObject; // Instância interna do TRadixNode raiz
+    FRootNode: TObject; // Internal root TRadixNode instance
     FDefaultRoutes: array[TRouteMethod] of THTTPRoute;
     function GetR(AIndex: Integer): THTTPRoute;
     class procedure DoneService;
@@ -202,7 +202,7 @@ const
 
 implementation
 
-uses strutils, typinfo, Zenith.Gzip;
+uses strutils, typinfo, Zenith.Gzip, Zenith.Idempotency;
 
 resourcestring
   EDuplicateRoute = 'Duplicate route pattern: %s and method: %s';
@@ -216,7 +216,7 @@ type
 
   TRadixNode = class
   private
-    FSegment: string;          // Literal do segmento ou nome da variável do param/wildcard
+    FSegment: string;          // Segment literal or param/wildcard variable name
     FKind: TSegmentKind;       // skStatic, skParam, skWildcard
     FStaticChildren: array of TRadixNode;
     FStaticCount: Integer;
@@ -350,21 +350,21 @@ begin
   AMethodMismatch := False;
   if not FHasRoutes then Exit;
 
-  // 1. Match direto do método
+  // 1. Direct method match
   if FRoutes[AMethod] <> nil then
   begin
     Result := FRoutes[AMethod];
     Exit;
   end;
 
-  // 2. Fallback para rota curinga rmAll
+  // 2. Fallback to rmAll wildcard method
   if FRoutes[rmAll] <> nil then
   begin
     Result := FRoutes[rmAll];
     Exit;
   end;
 
-  // 3. Verifica se tem alguma rota registrada para outro método neste nó
+  // 3. Check if any route is registered for another method on this node
   AnyRoute := False;
   for M := Low(TRouteMethod) to High(TRouteMethod) do
   begin
@@ -425,7 +425,7 @@ begin
   Result := nil;
   if ANode = nil then Exit;
 
-  // 1. Caso base: Chegamos ao fim dos segmentos da URL requisitada
+  // 1. Base case: Reached the end of the requested URL segments
   if ASegIdx >= ASegTotal then
   begin
     if ANode.HasRoutes then
@@ -438,7 +438,7 @@ begin
         Exit;
     end;
 
-    // Se não achou rota direta no nó, mas ele possui um filho wildcard que pode consumir vazio:
+    // If no direct route matched on this node, check if a wildcard child can consume empty remainder:
     if (ANode.WildcardChild <> nil) and ANode.WildcardChild.HasRoutes then
     begin
       SubMismatch := False;
@@ -456,9 +456,9 @@ begin
     Exit;
   end;
 
-  // 2. Ainda há segmentos a processar (ASegIdx < ASegTotal)
+  // 2. Still have segments to process (ASegIdx < ASegTotal)
 
-  // PRIORIDADE 1 (MÁXIMA): Nó Estático Literal
+  // PRIORITY 1 (HIGHEST): Static Literal Node
   StaticNode := ANode.FindStaticChild(ASegs[ASegIdx], roCaseSensitive in AOptions);
   if StaticNode <> nil then
   begin
@@ -470,7 +470,7 @@ begin
       Exit;
   end;
 
-  // PRIORIDADE 2: Nó Paramétrico (:param)
+  // PRIORITY 2: Parametric Node (:param)
   if ANode.ParamChild <> nil then
   begin
     ParamStartCount := 0;
@@ -487,7 +487,7 @@ begin
     if Result <> nil then
       Exit;
 
-    // Se falhou mais à frente no ramo, reverte os parâmetros adicionados para backtracking
+    // If a deeper branch failed, revert added parameters for backtracking
     if AParams <> nil then
     begin
       while AParams.Count > ParamStartCount do
@@ -495,7 +495,7 @@ begin
     end;
   end;
 
-  // PRIORIDADE 3 (MÍNIMA): Nó Curinga (*wildcard)
+  // PRIORITY 3 (LOWEST): Wildcard Node (*wildcard)
   if (ANode.WildcardChild <> nil) and ANode.WildcardChild.HasRoutes then
   begin
     SubMismatch := False;
@@ -572,7 +572,7 @@ end;
 
 constructor TRouteObject.Create;
 begin
-  // Permite que descendentes sobrescrevam
+  // Allow descendants to override
 end;
 
 { THTTPRouteObject }
@@ -626,7 +626,7 @@ end;
 
 procedure THTTPRoute.DoHandleRequest(ARequest: TRequest; AResponse: TResponse);
 begin
-  // Virtual base: implementado nas subclasses
+  // Virtual base: implemented in subclasses
 end;
 
 procedure THTTPRoute.HandleRequest(ARequest: TRequest; AResponse: TResponse);
@@ -853,7 +853,7 @@ begin
     begin
       ParamName := Copy(Seg, 2, MaxInt);
       CurrNode := CurrNode.GetOrCreateWildcardChild(ParamName);
-      Break; // Curinga é sempre terminal
+      Break; // Wildcard is always terminal
     end
     else if (Length(Seg) > 0) and (Seg[1] = ':') then
     begin
@@ -1069,10 +1069,10 @@ begin
   Segs := SplitPathSegments(APathInfo);
   SegCount := Length(Segs);
 
-  // Resolução em Radix Tree O(K)
+  // O(K) Radix Tree resolution
   Result := MatchRadix(TRadixNode(FRootNode), Segs, 0, SegCount, AMethod, Params, FRouteOptions, MethodMismatch);
 
-  // Se não encontrou, busca rotas Default
+  // If not found, search Default routes
   if Result = nil then
   begin
     if (AMethod in [Low(TRouteMethod)..High(TRouteMethod)]) and (FDefaultRoutes[AMethod] <> nil) then
@@ -1144,7 +1144,7 @@ var
   CompStream: TMemoryStream;
   StreamLen: Int64;
 begin
-  // 1. Descompactação GZIP na Entrada (Content-Encoding: gzip)
+  // 1. Inbound GZIP Decompression (Content-Encoding: gzip)
   CE := LowerCase(Trim(ARequest.ContentEncoding));
   if CE = '' then
     CE := LowerCase(Trim(ARequest.GetCustomHeader('Content-Encoding')));
@@ -1167,7 +1167,7 @@ begin
     end;
   end;
 
-  // 2. Validação Estrita de Content-Type nos Métodos de Escrita (POST, PUT, PATCH)
+  // 2. Strict Content-Type Validation on Write Methods (POST, PUT, PATCH)
   AMethod := StringToRouteMethod(ARequest.Method);
   if (AMethod in [rmPost, rmPut, rmPatch]) or SameText(ARequest.Method, 'POST') or SameText(ARequest.Method, 'PUT') or SameText(ARequest.Method, 'PATCH') then
   begin
@@ -1183,12 +1183,12 @@ begin
 
     if CTBase = '' then
     begin
-      // Fallback padrão obrigatório: Assume application/json
+      // Mandatory default fallback: assume application/json
       ARequest.ContentType := 'application/json';
     end
     else
     begin
-      // Lista de formatos canônicos aceitos
+      // List of accepted canonical media types
       if not (
          (CTBase = 'application/json') or
          (CTBase = 'application/cbor') or
@@ -1213,15 +1213,55 @@ begin
     end;
   end;
 
+  // 3. Idempotency middleware validation (IETF Draft Idempotency-Key)
+  if not TZenithIdempotency.ProcessBefore(ARequest, AResponse) then
+  begin
+    // Response short-circuited by middleware (400/409/422 RFC 9457 or cached replay)
+    AE := LowerCase(Trim(ARequest.AcceptEncoding));
+    if AE = '' then
+      AE := LowerCase(Trim(ARequest.GetCustomHeader('Accept-Encoding')));
+    if (Pos('gzip', AE) > 0) and (not AResponse.ContentSent) and (Length(AResponse.Content) > 0) then
+    begin
+      try
+        Compressed := GZipCompress(AResponse.Content);
+        CompStream := TMemoryStream.Create;
+        if Length(Compressed) > 0 then
+        begin
+          CompStream.WriteBuffer(Compressed[1], Length(Compressed));
+          CompStream.Position := 0;
+        end;
+        AResponse.Contents.Clear;
+        AResponse.FreeContentStream := True;
+        AResponse.ContentStream := CompStream;
+        AResponse.ContentLength := CompStream.Size;
+        AResponse.SetCustomHeader('Content-Encoding', 'gzip');
+        AResponse.ContentEncoding := 'gzip';
+      except
+      end;
+    end;
+    AResponse.SendContent;
+    Exit;
+  end;
+
   if Assigned(FBeforeRequest) then
     FBeforeRequest(Self, ARequest, AResponse);
 
-  DoRouteRequest(ARequest, AResponse);
+  try
+    DoRouteRequest(ARequest, AResponse);
+  except
+    on E: Exception do
+    begin
+      TZenithIdempotency.ReleaseOnError(ARequest);
+      raise;
+    end;
+  end;
 
   if Assigned(FAfterRequest) then
     FAfterRequest(Self, ARequest, AResponse);
 
-  // 3. Compactação GZIP na Resposta (Accept-Encoding: gzip)
+  TZenithIdempotency.ProcessAfter(ARequest, AResponse);
+
+  // 3. Outbound GZIP Compression (Accept-Encoding: gzip)
   AE := LowerCase(Trim(ARequest.AcceptEncoding));
   if AE = '' then
     AE := LowerCase(Trim(ARequest.GetCustomHeader('Accept-Encoding')));
@@ -1259,7 +1299,7 @@ begin
         AResponse.SetCustomHeader('Content-Encoding', 'gzip');
         AResponse.ContentEncoding := 'gzip';
       except
-        // Se falhar compressão, mantém original
+        // If compression fails, keep original payload
       end;
     end;
   end;

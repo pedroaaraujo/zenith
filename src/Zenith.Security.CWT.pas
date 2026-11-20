@@ -1070,7 +1070,7 @@ begin
   Fent_id := ASec.GetAttributeInt64('ent_id', 0);
   if Fent_id = 0 then
     Fent_id := ASec.GetAttributeInt64('empresa_id', 0);
-  Fiss := ASec.GetAttribute('iss', 'Prism');
+  Fiss := ASec.GetAttribute('iss', 'Zenith');
 end;
 
 procedure TCWTPayload.Refresh;

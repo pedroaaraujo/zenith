@@ -20,7 +20,7 @@ const
   ORDER_STATUS_CONFIRMED = 'CONFIRMED';
   ORDER_STATUS_CANCELLED = 'CANCELLED';
 
-  { Nomes de Tabelas }
+  { Table Names }
   TABLE_PRODUCTS         = 'products';
   TABLE_CUSTOMERS        = 'customers';
   TABLE_SALE_ORDERS      = 'sale_orders';
@@ -29,7 +29,7 @@ const
 type
   TSaleOrderItem = class;
 
-  { TProduct - Catálogo de Produtos }
+  { TProduct - Product Catalog }
   TProduct = class(TDeltaModel)
   private
     FId: TDFInt64Null;
@@ -67,7 +67,7 @@ type
     property credit_limit: TDFDoubleRequired read FCreditLimit write FCreditLimit;
   end;
 
-  { TSaleOrder - Pedido de Venda com Relacionamento 1:N }
+  { TSaleOrder - Sales Order with 1:N Relationship }
   TSaleOrder = class(TDeltaModel)
   private
     FId: TDFInt64Null;
@@ -281,7 +281,7 @@ begin
       end;
 
       WriteLn('[Seed] Inserindo clientes corporativos de demonstração...');
-      // Cliente 1
+      // Customer 1
       C := TCustomer.Create;
       try
         C.name.Value := 'Acme Soluções Tecnológicas Ltda';
@@ -298,7 +298,7 @@ begin
         C.Free;
       end;
 
-      // Cliente 2
+      // Customer 2
       C := TCustomer.Create;
       try
         C.name.Value := 'Global Logística & Distribuição S.A.';
@@ -315,7 +315,7 @@ begin
         C.Free;
       end;
 
-      // Cliente 3
+      // Customer 3
       C := TCustomer.Create;
       try
         C.name.Value := 'Dr. Roberto Silveira Santos';
@@ -333,7 +333,7 @@ begin
       end;
 
       WriteLn('[Seed] Inserindo pedidos de venda iniciais com itens (RMS)...');
-      // Pedido 1: Aberto para Acme
+      // Order 1: Open for Acme
       O := TSaleOrder.Create;
       try
         O.order_number.Value := 'ORD-2026-0001';
@@ -387,7 +387,7 @@ begin
         O.Free;
       end;
 
-      // Pedido 2: Para Global Logística
+      // Order 2: For Global Logistics
       O := TSaleOrder.Create;
       try
         O.order_number.Value := 'ORD-2026-0002';

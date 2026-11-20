@@ -27,7 +27,7 @@ uses
   Order.Model;
 
 const
-  { Rotas e Caminhos da API }
+  { API Routes and Paths }
   PATH_PRODUCTS    = '/api/v1/products';
   PATH_CUSTOMERS   = '/api/v1/customers';
   PATH_ORDERS      = '/api/v1/orders';
@@ -35,18 +35,18 @@ const
   PATH_SUB_BY_ID   = '/:id';
   PATH_SUB_CANCEL  = '/:id/cancel';
 
-  { Parâmetros de Rota e Consulta }
+  { Route and Query Parameters }
   PARAM_ID         = 'id';
   PARAM_PAGE       = 'page';
   PARAM_PAGE_SIZE  = 'page_size';
   PARAM_STATUS     = 'status';
 
-  { Paginação Padrão }
+  { Default Pagination }
   DEFAULT_PAGE      = 1;
   DEFAULT_PAGE_SIZE = 10;
   MAX_PAGE_SIZE     = 100;
 
-  { Perfis de Segurança (RBAC) }
+  { Security Roles (RBAC) }
   ROLE_ADMIN = 'admin';
 
   { Swagger Tags }
@@ -54,7 +54,7 @@ const
   TAG_CUSTOMERS = 'Clientes';
   TAG_ORDERS    = 'Pedidos (RMS)';
 
-  { Swagger Descrições e Sumários }
+  { Swagger Descriptions and Summaries }
   SUMMARY_LIST_ORDERS      = 'Listar pedidos de venda';
   DESC_LIST_ORDERS         = 'Retorna lista paginada de pedidos com opção de filtro por status';
   SUMMARY_GET_ORDER_BY_ID  = 'Obter pedido por ID';
@@ -74,7 +74,7 @@ const
   DOC_PARAM_STATUS         = 'Filtrar por status (ex: CONFIRMED, CANCELLED)';
   DOC_PARAM_ID             = 'ID numérico do pedido';
 
-  { Mensagens Descritivas de Validação e Erro RFC 7807 }
+  { RFC 7807 Validation and Error Messages }
   MSG_INVALID_ORDER_ID         = 'Identificador de pedido inválido.';
   MSG_ORDER_NOT_FOUND          = 'Pedido #%d não encontrado.';
   MSG_ORDER_ALREADY_CANCELLED  = 'O pedido #%d já se encontra cancelado.';
@@ -163,7 +163,7 @@ begin
   end;
 end;
 
-{ GET /api/v1/orders/:id - Obter Pedido com Itens }
+{ GET /api/v1/orders/:id - Get Order with Items }
 procedure HandleGetOrderById(AReq: TRequest; AResp: TResponse);
 var
   OrderId: Int64;
@@ -196,7 +196,7 @@ begin
   end;
 end;
 
-{ POST /api/v1/orders - Criar Pedido com Validação de Estoque e Crédito }
+{ POST /api/v1/orders - Create Order with Stock and Credit Validation }
 procedure HandleCreateOrder(AReq: TRequest; AResp: TResponse);
 var
   JsonDoc: TJSONData;
@@ -257,7 +257,7 @@ begin
     ProductsToUpdate := TFPGObjectList<TProduct>.Create(True);
     ItemsToInsert := TFPGObjectList<TSaleOrderItem>.Create(True);
     try
-      // 1. Validar Cliente
+      // 1. Validate Customer
       QCust := TDeltaQuery<TCustomer>.Create(Lease);
       try
         Cust := QCust.FindById(CustomerId);
@@ -269,7 +269,7 @@ begin
 
       TotalAmount := 0.0;
 
-      // 2. Validar cada Produto e Estoque
+      // 2. Validate each Product and Stock
       for I := 0 to ItemsArray.Count - 1 do
       begin
         if not (ItemsArray[I] is TJSONObject) then
@@ -307,7 +307,7 @@ begin
           LineTotal := LinePrice * Qty;
           TotalAmount := TotalAmount + LineTotal;
 
-          // Prepara item para inserção
+          // Prepare item for insertion
           OrderItem := TSaleOrderItem.Create;
           OrderItem.product_id.Value := ProdId;
           OrderItem.quantity.Value := Qty;
@@ -315,7 +315,7 @@ begin
           OrderItem.total_price.Value := LineTotal;
           ItemsToInsert.Add(OrderItem);
 
-          // Atualiza saldo de estoque na memória
+          // Update stock balance in memory
           Prod.stock.Value := Prod.stock.AsFloat - Qty;
           ProductsToUpdate.Add(Prod);
         finally
@@ -323,11 +323,11 @@ begin
         end;
       end;
 
-      // 3. Validar Limite de Crédito do Cliente
+      // 3. Validate Customer Credit Limit
       if (Cust.credit_limit.AsFloat > 0) and (TotalAmount > Cust.credit_limit.AsFloat) then
         raise EUnprocessableEntity.CreateFmt(MSG_CREDIT_LIMIT_EXCEEDED, [Cust.credit_limit.AsFloat, TotalAmount]);
 
-      // 4. Gravação Atômica (Transação Única)
+      // 4. Atomic Commit (Single Transaction)
       Lease.StartTransaction;
       try
         Order := TSaleOrder.Create;
@@ -345,7 +345,7 @@ begin
             QOrder.Free;
           end;
 
-          // Inserir Itens com FK order_id
+          // Insert Items with FK order_id
           for I := 0 to ItemsToInsert.Count - 1 do
           begin
             ItemsToInsert[I].order_id.Value := Order.id.AsInt64;
@@ -357,13 +357,13 @@ begin
             end;
           end;
 
-          // Atualizar estoque dos produtos
+          // Update product stock
           for I := 0 to ProductsToUpdate.Count - 1 do
             TUpdate.UpdateObject(Lease, ProductsToUpdate[I]);
 
           Lease.Commit;
 
-          // Recarregar pedido completo com eager loading para resposta
+          // Reload complete order with eager loading for response
           QOrder := TDeltaQuery<TSaleOrder>.Create(Lease);
           try
             Order.Free;
@@ -423,7 +423,7 @@ begin
 
       Lease.StartTransaction;
       try
-        // 1. Estornar estoque dos itens
+        // 1. Revert item stock
         for I := 0 to Order.items.Count - 1 do
         begin
           Item := TSaleOrderItem(Order.items[I]);
@@ -444,7 +444,7 @@ begin
           end;
         end;
 
-        // 2. Atualizar status do pedido
+        // 2. Update order status
         Order.status.Value := ORDER_STATUS_CANCELLED;
         TUpdate.UpdateObject(Lease, Order);
 
@@ -471,7 +471,7 @@ var
   ProductRBAC: TZRBACPolicy<TProduct>;
   Group: TSwaggerRouteGroup;
 begin
-  // 1. CRUD de Produtos com política RBAC declarativa
+  // 1. Product CRUD with declarative RBAC policy
   ProductRBAC := TZRBACPolicy<TProduct>.Create;
   ProductRBAC
     .AllowRoles(caCreate, [ROLE_ADMIN])
@@ -488,7 +488,7 @@ begin
     .WithTag(TAG_CUSTOMERS)
     .Register;
 
-  // 3. RMS Orders API com TSwaggerRouteGroup fluente
+  // 3. RMS Orders API with fluent TSwaggerRouteGroup
   Group := SwaggerRouter.Group(PATH_ORDERS)
     .Tag(TAG_ORDERS)
     .StandardProblems;

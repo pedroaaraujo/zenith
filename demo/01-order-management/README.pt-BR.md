@@ -143,4 +143,4 @@ Com o servidor em execução, acesse:
 
 ## 🛡️ Licença
 
-Componente do ecossistema **Zenith Framework** e **Prism ERP** sob licença MIT.
+Componente do ecossistema **Zenith Framework** sob licença MIT.

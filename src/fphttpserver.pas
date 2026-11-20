@@ -69,6 +69,8 @@ type
     constructor Create(AServer: TFPCustomHTTPServer; ASocket: TSocketStream);
     destructor Destroy; override;
     procedure HandleRequest; virtual;
+    function TakeBuffer: Ansistring;
+    property Buffer: Ansistring read FBuffer;
     property Socket: TSocketStream read FSocket;
     property Server: TFPCustomHTTPServer read FServer;
     property OnRequestError: TRequestErrorHandler read FOnError write FOnError;
@@ -357,7 +359,7 @@ begin
   S := Format('HTTP/1.1 %3d %s'#13#10, [Code, GetStatusCode(Code)]);
   for I := 0 to Headers.Count - 1 do
     S := S + Headers[I] + #13#10;
-  // Linha final vazia após headers
+  // Final empty line after headers
   Connection.Socket.WriteBuffer(S[1], Length(S));
 end;
 
@@ -576,6 +578,12 @@ begin
     InterLockedDecrement(FServer.FConnectionCount);
   FreeAndNil(FSocket);
   inherited Destroy;
+end;
+
+function TFPHTTPConnection.TakeBuffer: Ansistring;
+begin
+  Result := FBuffer;
+  FBuffer := '';
 end;
 
 function TFPHTTPConnection.GetLookupHostNames: Boolean;
@@ -886,11 +894,11 @@ begin
         EnsureThreadPool;
         if not FThreadPool.QueueWork(Con) then
         begin
-          // Fila cheia: rejeita com erro seguro e fecha conexão
+          // Queue full: reject safely and close connection
           HandleRequestError(Self, EHTTPServer.Create('Server busy: ThreadPool queue full'));
           Con.Free;
         end;
-        // Se enfileirado com sucesso, a posse de Con é do worker thread que o liberará
+        // If enqueued successfully, the worker thread takes ownership of Con and frees it
       end
       else
         CreateConnectionThread(Con); // Fallback modo thread-per-request
@@ -947,7 +955,7 @@ constructor TFPCustomHttpServer.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
   FPort := 80;
-  FQueueSize := 128; // Backlog de listen elevado para alta concorrência
+  FQueueSize := 128; // High listen backlog for high concurrency
   FServerBanner := 'Zenith';
   FCertificateData := CreateCertificateData;
   FUseThreadPool := True;

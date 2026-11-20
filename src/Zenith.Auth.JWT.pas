@@ -326,11 +326,10 @@ end;
 
 class function TJWT.OpenAPISchema: string;
 begin
-  {A data retornada no exemplo é o momento em que este bloco foi escrito.
-   Eu estava na fazenda, em um domingo de carnaval, bebendo uma cerveja
-   enquanto aguardava o almoço.
+  { The timestamp returned in this example is the moment this block was written.
+    I was at the farm on a Carnival Sunday, having a beer while waiting for lunch.
 
-   Se você estiver lendo este comentário, lhe desejo toda felicidade e um fraterno abraço.
+    If you are reading this comment, I wish you all happiness and a warm hug.
   }
   Result :=
     '{' +

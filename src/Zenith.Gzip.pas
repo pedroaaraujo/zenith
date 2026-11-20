@@ -13,13 +13,13 @@ interface
 uses
   Classes, SysUtils, zstream;
 
-{ Compacta dados binários ou string UTF-8 no formato GZIP (RFC 1952) }
+{ Compresses binary data or UTF-8 string into GZIP format (RFC 1952) }
 function GZipCompress(const AData: RawByteString; ALevel: TCompressionLevel = clDefault): RawByteString;
 
-{ Descompacta payload GZIP (RFC 1952) validando cabeçalho e integridade CRC32 }
+{ Decompresses GZIP payload (RFC 1952) validating header and CRC32 integrity }
 function GZipDecompress(const ACompressed: RawByteString): RawByteString;
 
-{ Utilitários para compactação e descompactação de streams }
+{ Utilities for stream compression and decompression }
 procedure GZipCompressStream(AInput, AOutput: TStream; ALevel: TCompressionLevel = clDefault);
 procedure GZipDecompressStream(AInput, AOutput: TStream);
 
@@ -40,7 +40,7 @@ begin
         ZipStream.WriteBuffer(Buffer, BytesRead);
     until BytesRead = 0;
   finally
-    // A destruição de TGZipCompressionStream escreve o rodapé RFC 1952 com CRC32 e tamanho
+    // Destroying TGZipCompressionStream writes the RFC 1952 trailer with CRC32 and size
     ZipStream.Free;
   end;
 end;

@@ -143,4 +143,4 @@ Once the server is running:
 
 ## 🛡️ License
 
-Part of the **Zenith Framework** and **Prism ERP** ecosystem under MIT License.
+Part of the **Zenith Framework** ecosystem under MIT License.
