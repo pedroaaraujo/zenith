@@ -274,6 +274,7 @@ var
   PropInfo: PPropInfo;
   AttrVal: string;
   IntVal: Int64;
+  FieldObj: TObject;
 begin
   for I := 0 to High(FScopes) do
   begin
@@ -289,7 +290,18 @@ begin
             SetOrdProp(AModel, PropInfo, IntVal);
         end
         else if PropInfo^.PropType^.Kind in [tkSString, tkLString, tkAString, tkUString] then
-          SetStrProp(AModel, PropInfo, AttrVal);
+          SetStrProp(AModel, PropInfo, AttrVal)
+        else if PropInfo^.PropType^.Kind = tkClass then
+        begin
+          FieldObj := GetObjectProp(AModel, PropInfo);
+          if (FieldObj <> nil) and (FieldObj is TDeltaField) then
+          begin
+            if TryStrToInt64(AttrVal, IntVal) then
+              TDeltaField(FieldObj).Value := IntVal
+            else
+              TDeltaField(FieldObj).Value := AttrVal;
+          end;
+        end;
       end;
     end;
   end;
@@ -299,6 +311,7 @@ procedure TZRBACPolicy<T>.BeforeUpdate(const ASecurity: TZSecurityContext; ARequ
 var
   I: Integer;
   PropInfo: PPropInfo;
+  FieldObjExisting, FieldObjInput: TObject;
 begin
   for I := 0 to High(FScopes) do
   begin
@@ -308,7 +321,14 @@ begin
       if PropInfo^.PropType^.Kind in [tkInteger, tkInt64] then
         SetOrdProp(AInputModel, PropInfo, GetOrdProp(AExistingModel, PropInfo))
       else if PropInfo^.PropType^.Kind in [tkSString, tkLString, tkAString, tkUString] then
-        SetStrProp(AInputModel, PropInfo, GetStrProp(AExistingModel, PropInfo));
+        SetStrProp(AInputModel, PropInfo, GetStrProp(AExistingModel, PropInfo))
+      else if PropInfo^.PropType^.Kind = tkClass then
+      begin
+        FieldObjExisting := GetObjectProp(AExistingModel, PropInfo);
+        FieldObjInput := GetObjectProp(AInputModel, PropInfo);
+        if (FieldObjExisting is TDeltaField) and (FieldObjInput is TDeltaField) then
+          TDeltaField(FieldObjInput).Value := TDeltaField(FieldObjExisting).Value;
+      end;
     end;
   end;
 end;
