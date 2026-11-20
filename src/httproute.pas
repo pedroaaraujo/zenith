@@ -202,7 +202,7 @@ const
 
 implementation
 
-uses strutils, typinfo;
+uses strutils, typinfo, Zenith.Gzip;
 
 resourcestring
   EDuplicateRoute = 'Duplicate route pattern: %s and method: %s';
@@ -1135,12 +1135,134 @@ begin
 end;
 
 procedure THTTPRouter.RouteRequest(ARequest: TRequest; AResponse: TResponse);
+var
+  AMethod: TRouteMethod;
+  CT, CTBase: string;
+  P: Integer;
+  CE, AE: string;
+  Compressed, RawContent: RawByteString;
+  CompStream: TMemoryStream;
+  StreamLen: Int64;
 begin
+  // 1. Descompactação GZIP na Entrada (Content-Encoding: gzip)
+  CE := LowerCase(Trim(ARequest.ContentEncoding));
+  if CE = '' then
+    CE := LowerCase(Trim(ARequest.GetCustomHeader('Content-Encoding')));
+
+  if (Pos('gzip', CE) > 0) and (Length(ARequest.Content) > 0) then
+  begin
+    try
+      ARequest.Content := GZipDecompress(ARequest.Content);
+      ARequest.ContentEncoding := '';
+      ARequest.SetCustomHeader('Content-Encoding', '');
+    except
+      on E: Exception do
+      begin
+        AResponse.Code := 400;
+        AResponse.ContentType := 'application/problem+json; charset=utf-8';
+        AResponse.Content := '{"type":"https://tools.ietf.org/html/rfc7807","title":"Bad Request","status":400,"detail":"Falha ao descompactar payload GZIP: ' + E.Message + '"}';
+        AResponse.SendContent;
+        Exit;
+      end;
+    end;
+  end;
+
+  // 2. Validação Estrita de Content-Type nos Métodos de Escrita (POST, PUT, PATCH)
+  AMethod := StringToRouteMethod(ARequest.Method);
+  if (AMethod in [rmPost, rmPut, rmPatch]) or SameText(ARequest.Method, 'POST') or SameText(ARequest.Method, 'PUT') or SameText(ARequest.Method, 'PATCH') then
+  begin
+    CT := Trim(ARequest.ContentType);
+    if CT = '' then
+      CT := Trim(ARequest.GetCustomHeader('Content-Type'));
+
+    P := Pos(';', CT);
+    if P > 0 then
+      CTBase := LowerCase(Trim(Copy(CT, 1, P - 1)))
+    else
+      CTBase := LowerCase(Trim(CT));
+
+    if CTBase = '' then
+    begin
+      // Fallback padrão obrigatório: Assume application/json
+      ARequest.ContentType := 'application/json';
+    end
+    else
+    begin
+      // Lista de formatos canônicos aceitos
+      if not (
+         (CTBase = 'application/json') or
+         (CTBase = 'application/cbor') or
+         (CTBase = 'application/bson') or
+         (CTBase = 'application/x-bson') or
+         (CTBase = 'application/xml') or
+         (CTBase = 'text/xml') or
+         (CTBase = 'text/csv') or
+         (CTBase = 'application/csv') or
+         (CTBase = 'application/x-www-form-urlencoded') or
+         (CTBase = 'multipart/form-data') or
+         (CTBase = 'application/problem+json') or
+         (CTBase = 'application/octet-stream')
+      ) then
+      begin
+        AResponse.Code := 400;
+        AResponse.ContentType := 'application/problem+json; charset=utf-8';
+        AResponse.Content := '{"type":"https://tools.ietf.org/html/rfc7807","title":"Bad Request","status":400,"detail":"Content-Type não suportado. Formatos aceitos: application/json, application/cbor, application/bson, application/xml, text/csv, application/x-www-form-urlencoded, multipart/form-data."}';
+        AResponse.SendContent;
+        Exit;
+      end;
+    end;
+  end;
+
   if Assigned(FBeforeRequest) then
     FBeforeRequest(Self, ARequest, AResponse);
+
   DoRouteRequest(ARequest, AResponse);
+
   if Assigned(FAfterRequest) then
     FAfterRequest(Self, ARequest, AResponse);
+
+  // 3. Compactação GZIP na Resposta (Accept-Encoding: gzip)
+  AE := LowerCase(Trim(ARequest.AcceptEncoding));
+  if AE = '' then
+    AE := LowerCase(Trim(ARequest.GetCustomHeader('Accept-Encoding')));
+
+  if (Pos('gzip', AE) > 0) and (not AResponse.ContentSent) then
+  begin
+    RawContent := '';
+    if Assigned(AResponse.ContentStream) then
+    begin
+      AResponse.ContentStream.Position := 0;
+      StreamLen := AResponse.ContentStream.Size;
+      if StreamLen > 0 then
+      begin
+        SetLength(RawContent, StreamLen);
+        AResponse.ContentStream.ReadBuffer(RawContent[1], StreamLen);
+      end;
+    end
+    else
+      RawContent := AResponse.Content;
+
+    if Length(RawContent) > 0 then
+    begin
+      try
+        Compressed := GZipCompress(RawContent);
+        CompStream := TMemoryStream.Create;
+        if Length(Compressed) > 0 then
+        begin
+          CompStream.WriteBuffer(Compressed[1], Length(Compressed));
+          CompStream.Position := 0;
+        end;
+        AResponse.Contents.Clear;
+        AResponse.FreeContentStream := True;
+        AResponse.ContentStream := CompStream;
+        AResponse.ContentLength := CompStream.Size;
+        AResponse.SetCustomHeader('Content-Encoding', 'gzip');
+        AResponse.ContentEncoding := 'gzip';
+      except
+        // Se falhar compressão, mantém original
+      end;
+    end;
+  end;
 end;
 
 finalization

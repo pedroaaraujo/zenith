@@ -26,6 +26,9 @@ type
   TZenithApp = class
   public
     function SetThreaded(const Value: Boolean): TZenithApp;
+    function SetUseThreadPool(const Value: Boolean): TZenithApp;
+    function SetThreadPoolSize(const ASize: Integer): TZenithApp;
+    function SetThreadPoolQueueLimit(const ALimit: Integer): TZenithApp;
     function SetTitle(const ATitle: string): TZenithApp;
     function SetDescription(const ADescription: string): TZenithApp;
     function SetVersion(const AVersion: string): TZenithApp;
@@ -107,6 +110,24 @@ end;
 function TZenithApp.SetThreaded(const Value: Boolean): TZenithApp;
 begin
   Application.Threaded := Value;
+  Result := Self;
+end;
+
+function TZenithApp.SetUseThreadPool(const Value: Boolean): TZenithApp;
+begin
+  Application.UseThreadPool := Value;
+  Result := Self;
+end;
+
+function TZenithApp.SetThreadPoolSize(const ASize: Integer): TZenithApp;
+begin
+  Application.ThreadPoolSize := ASize;
+  Result := Self;
+end;
+
+function TZenithApp.SetThreadPoolQueueLimit(const ALimit: Integer): TZenithApp;
+begin
+  Application.ThreadPoolQueueLimit := ALimit;
   Result := Self;
 end;
 
