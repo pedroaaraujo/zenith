@@ -8,7 +8,10 @@ uses
   Classes, SysUtils;
 
 type
-  HTTPException = class(Exception);
+  HTTPException = class(Exception)
+  public
+    constructor CreateFmt(const AFormat: string; const AArgs: array of const);
+  end;
 
   EValidation = class(HTTPException);
   EConflict = class(HTTPException);
@@ -18,7 +21,7 @@ type
   EUnauthorized = class(HTTPException);
   EForbidden = class(HTTPException);
   EResourceNotFound = class(HTTPException);
-  ETooManyRequests= class(HTTPException);
+  ETooManyRequests = class(HTTPException);
   EServerError = class(HTTPException);
   EBadRequest = class(HTTPException);
   ENotFound = class(HTTPException);
@@ -26,5 +29,11 @@ type
 
 implementation
 
-end.
+{ HTTPException }
 
+constructor HTTPException.CreateFmt(const AFormat: string; const AArgs: array of const);
+begin
+  inherited Create(Format(AFormat, AArgs));
+end;
+
+end.

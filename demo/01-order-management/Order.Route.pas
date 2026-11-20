@@ -12,6 +12,8 @@ uses
   jsonparser,
   fgl,
   Zenith.App,
+  Zenith.Constants,
+  Zenith.Exceptions,
   Zenith.Crud,
   Zenith.Crud.Interceptor,
   Zenith.Security,
@@ -19,34 +21,80 @@ uses
   DeltaModel,
   DeltaModel.Generics,
   DeltaModel.ORM.Interfaces,
-  DeltaModel.ORM.Connection,
   DeltaModel.ORM.Pool,
   DeltaModel.ORM.DML,
   DeltaModel.JsonStreamer,
   Order.Model;
 
+const
+  { Rotas e Caminhos da API }
+  PATH_PRODUCTS    = '/api/v1/products';
+  PATH_CUSTOMERS   = '/api/v1/customers';
+  PATH_ORDERS      = '/api/v1/orders';
+  PATH_SUB_ROOT    = '';
+  PATH_SUB_BY_ID   = '/:id';
+  PATH_SUB_CANCEL  = '/:id/cancel';
+
+  { Parâmetros de Rota e Consulta }
+  PARAM_ID         = 'id';
+  PARAM_PAGE       = 'page';
+  PARAM_PAGE_SIZE  = 'page_size';
+  PARAM_STATUS     = 'status';
+
+  { Paginação Padrão }
+  DEFAULT_PAGE      = 1;
+  DEFAULT_PAGE_SIZE = 10;
+  MAX_PAGE_SIZE     = 100;
+
+  { Perfis de Segurança (RBAC) }
+  ROLE_ADMIN = 'admin';
+
+  { Swagger Tags }
+  TAG_PRODUCTS  = 'Produtos';
+  TAG_CUSTOMERS = 'Clientes';
+  TAG_ORDERS    = 'Pedidos (RMS)';
+
+  { Swagger Descrições e Sumários }
+  SUMMARY_LIST_ORDERS      = 'Listar pedidos de venda';
+  DESC_LIST_ORDERS         = 'Retorna lista paginada de pedidos com opção de filtro por status';
+  SUMMARY_GET_ORDER_BY_ID  = 'Obter pedido por ID';
+  DESC_GET_ORDER_BY_ID     = 'Retorna dados detalhados do pedido incluindo a coleção de itens (Include eager loading)';
+  SUMMARY_CREATE_ORDER     = 'Criar novo pedido de venda';
+  DESC_CREATE_ORDER        = 'Valida estoque disponível dos produtos, limite de crédito do cliente e efetua a baixa de estoque atômica';
+  SUMMARY_CANCEL_ORDER     = 'Cancelar pedido de venda';
+  DESC_CANCEL_ORDER        = 'Cancela o pedido e estorna atomicamente o saldo de estoque dos produtos';
+
+  DOC_PAYLOAD_ORDER        = 'Payload do pedido com customer_id e array de items';
+  DOC_RESP_ORDER_CREATED   = 'Pedido criado com sucesso';
+  DOC_RESP_ORDER_WITH_ITEMS= 'Pedido completo com itens';
+  DOC_RESP_ORDER_CANCELLED = 'Pedido cancelado e estoque estornado';
+  DOC_RESP_ORDERS_PAGINATED= 'Lista paginada de pedidos';
+  DOC_PARAM_PAGE           = 'Número da página';
+  DOC_PARAM_PAGE_SIZE      = 'Registros por página';
+  DOC_PARAM_STATUS         = 'Filtrar por status (ex: CONFIRMED, CANCELLED)';
+  DOC_PARAM_ID             = 'ID numérico do pedido';
+
+  { Mensagens Descritivas de Validação e Erro RFC 7807 }
+  MSG_INVALID_ORDER_ID         = 'Identificador de pedido inválido.';
+  MSG_ORDER_NOT_FOUND          = 'Pedido #%d não encontrado.';
+  MSG_ORDER_ALREADY_CANCELLED  = 'O pedido #%d já se encontra cancelado.';
+  MSG_EMPTY_REQUEST_BODY       = 'O corpo da requisição não pode ser vazio.';
+  MSG_INVALID_JSON_PAYLOAD     = 'Erro ao processar JSON: %s';
+  MSG_JSON_ROOT_MUST_BE_OBJECT = 'O payload raiz deve ser um objeto JSON.';
+  MSG_CUSTOMER_ID_REQUIRED     = 'O campo customer_id é obrigatório e deve ser maior que zero.';
+  MSG_ITEMS_PROPERTY_REQUIRED  = 'A propriedade items deve ser uma lista de itens.';
+  MSG_ITEMS_CANNOT_BE_EMPTY    = 'O pedido deve conter ao menos 1 item na lista items.';
+  MSG_ITEM_MUST_BE_OBJECT      = 'Cada item do pedido deve ser um objeto JSON.';
+  MSG_ITEM_FIELDS_REQUIRED     = 'product_id e quantity positiva são obrigatórios em cada item.';
+  MSG_CUSTOMER_NOT_FOUND       = 'Cliente #%d não encontrado.';
+  MSG_PRODUCT_NOT_FOUND        = 'Produto #%d não encontrado.';
+  MSG_PRODUCT_INACTIVE         = 'Produto #%d ("%s") encontra-se inativo.';
+  MSG_INSUFFICIENT_STOCK       = 'Estoque insuficiente para o produto "%s". Disponível: %.2f, Solicitado: %.2f';
+  MSG_CREDIT_LIMIT_EXCEEDED    = 'Limite de crédito do cliente excedido. Limite disponível: R$ %.2f, Total do pedido: R$ %.2f';
+
 procedure RegisterOrderDemoRoutes;
 
 implementation
-
-{ Resposta RFC 7807 Problem Details }
-procedure SendProblemResponse(AResp: TResponse; AStatus: Integer; const ATitle, ADetail: string);
-var
-  Doc: TJSONObject;
-begin
-  Doc := TJSONObject.Create;
-  try
-    Doc.Add('type', 'https://tools.ietf.org/html/rfc7807');
-    Doc.Add('title', ATitle);
-    Doc.Add('status', AStatus);
-    Doc.Add('detail', ADetail);
-    AResp.Code := AStatus;
-    AResp.ContentType := 'application/problem+json';
-    AResp.Content := Doc.AsJSON;
-  finally
-    Doc.Free;
-  end;
-end;
 
 { GET /api/v1/orders - Listar Pedidos de Venda }
 procedure HandleGetOrders(AReq: TRequest; AResp: TResponse);
@@ -61,13 +109,13 @@ var
   I: Integer;
   OrderJsonDoc: TJSONData;
 begin
-  Page := StrToIntDef(AReq.QueryFields.Values['page'], 1);
-  if Page < 1 then Page := 1;
-  PageSize := StrToIntDef(AReq.QueryFields.Values['page_size'], 10);
-  if PageSize < 1 then PageSize := 10;
-  if PageSize > 100 then PageSize := 100;
+  Page := StrToIntDef(AReq.QueryFields.Values[PARAM_PAGE], DEFAULT_PAGE);
+  if Page < 1 then Page := DEFAULT_PAGE;
+  PageSize := StrToIntDef(AReq.QueryFields.Values[PARAM_PAGE_SIZE], DEFAULT_PAGE_SIZE);
+  if PageSize < 1 then PageSize := DEFAULT_PAGE_SIZE;
+  if PageSize > MAX_PAGE_SIZE then PageSize := MAX_PAGE_SIZE;
 
-  StatusFilter := Trim(AReq.QueryFields.Values['status']);
+  StatusFilter := Trim(AReq.QueryFields.Values[PARAM_STATUS]);
 
   Lease := OrderPool.Acquire;
   Q := TDeltaQuery<TSaleOrder>.Create(Lease);
@@ -101,8 +149,8 @@ begin
           DataArray.Add(OrderJsonDoc);
         end;
 
-        AResp.Code := 200;
-        AResp.ContentType := 'application/json';
+        AResp.Code := HTTP_STATUS_OK;
+        AResp.ContentType := MIME_APPLICATION_JSON;
         AResp.Content := ResponseObj.AsJSON;
       finally
         ResponseObj.Free;
@@ -124,27 +172,21 @@ var
   Order: TSaleOrder;
   JsonBytes: RawByteString;
 begin
-  OrderId := StrToInt64Def(AReq.RouteParams['id'], 0);
+  OrderId := StrToInt64Def(AReq.RouteParams[PARAM_ID], 0);
   if OrderId <= 0 then
-  begin
-    SendProblemResponse(AResp, 400, 'Bad Request', 'Identificador de pedido inválido.');
-    Exit;
-  end;
+    raise EBadRequest.Create(MSG_INVALID_ORDER_ID);
 
   Lease := OrderPool.Acquire;
   Q := TDeltaQuery<TSaleOrder>.Create(Lease);
   try
     Order := Q.Include('items').FindById(OrderId);
     if Order = nil then
-    begin
-      SendProblemResponse(AResp, 404, 'Not Found', Format('Pedido #%d não encontrado.', [OrderId]));
-      Exit;
-    end;
+      raise ENotFound.CreateFmt(MSG_ORDER_NOT_FOUND, [OrderId]);
 
     try
       JsonBytes := TDeltaFastJsonStreamer.ModelToJson(Order);
-      AResp.Code := 200;
-      AResp.ContentType := 'application/json';
+      AResp.Code := HTTP_STATUS_OK;
+      AResp.ContentType := MIME_APPLICATION_JSON;
       AResp.Content := JsonBytes;
     finally
       Order.Free;
@@ -177,113 +219,88 @@ var
   ItemsToInsert: TFPGObjectList<TSaleOrderItem>;
   ProductsToUpdate: TFPGObjectList<TProduct>;
   JsonBytes: RawByteString;
+  ProdName: string;
+  StockAvail: Double;
 begin
   if Trim(AReq.Content).IsEmpty then
-  begin
-    SendProblemResponse(AResp, 400, 'Bad Request', 'O corpo da requisição não pode ser vazio.');
-    Exit;
-  end;
+    raise EBadRequest.Create(MSG_EMPTY_REQUEST_BODY);
 
   try
     JsonDoc := GetJSON(AReq.Content);
   except
     on E: Exception do
-    begin
-      SendProblemResponse(AResp, 400, 'Invalid JSON', 'Erro ao processar JSON: ' + E.Message);
-      Exit;
-    end;
+      raise EBadRequest.CreateFmt(MSG_INVALID_JSON_PAYLOAD, [E.Message]);
   end;
 
   if not (JsonDoc is TJSONObject) then
   begin
     JsonDoc.Free;
-    SendProblemResponse(AResp, 400, 'Invalid JSON', 'O payload raiz deve ser um objeto JSON.');
-    Exit;
+    raise EBadRequest.Create(MSG_JSON_ROOT_MUST_BE_OBJECT);
   end;
 
   BodyObj := TJSONObject(JsonDoc);
   try
     CustomerId := BodyObj.Get('customer_id', Int64(0));
     if CustomerId <= 0 then
-    begin
-      SendProblemResponse(AResp, 422, 'Validation Error', 'O campo customer_id é obrigatório e deve ser maior que zero.');
-      Exit;
-    end;
+      raise EUnprocessableEntity.Create(MSG_CUSTOMER_ID_REQUIRED);
 
     if not (BodyObj.Find('items') is TJSONArray) then
-    begin
-      SendProblemResponse(AResp, 422, 'Validation Error', 'A propriedade items deve ser uma lista de itens.');
-      Exit;
-    end;
+      raise EUnprocessableEntity.Create(MSG_ITEMS_PROPERTY_REQUIRED);
 
     ItemsArray := TJSONArray(BodyObj.Find('items'));
     if ItemsArray.Count = 0 then
-    begin
-      SendProblemResponse(AResp, 422, 'Validation Error', 'O pedido deve conter ao menos 1 item na lista items.');
-      Exit;
-    end;
+      raise EUnprocessableEntity.Create(MSG_ITEMS_CANNOT_BE_EMPTY);
 
     Lease := OrderPool.Acquire;
 
-    // 1. Validar Cliente
-    QCust := TDeltaQuery<TCustomer>.Create(Lease);
-    try
-      Cust := QCust.FindById(CustomerId);
-      if Cust = nil then
-      begin
-        SendProblemResponse(AResp, 404, 'Customer Not Found', Format('Cliente #%d não encontrado.', [CustomerId]));
-        Exit;
-      end;
-    finally
-      QCust.Free;
-    end;
-
+    Cust := nil;
     ProductsToUpdate := TFPGObjectList<TProduct>.Create(True);
     ItemsToInsert := TFPGObjectList<TSaleOrderItem>.Create(True);
     try
+      // 1. Validar Cliente
+      QCust := TDeltaQuery<TCustomer>.Create(Lease);
+      try
+        Cust := QCust.FindById(CustomerId);
+        if Cust = nil then
+          raise ENotFound.CreateFmt(MSG_CUSTOMER_NOT_FOUND, [CustomerId]);
+      finally
+        QCust.Free;
+      end;
+
       TotalAmount := 0.0;
 
       // 2. Validar cada Produto e Estoque
       for I := 0 to ItemsArray.Count - 1 do
       begin
         if not (ItemsArray[I] is TJSONObject) then
-        begin
-          SendProblemResponse(AResp, 422, 'Validation Error', 'Cada item do pedido deve ser um objeto JSON.');
-          Exit;
-        end;
+          raise EUnprocessableEntity.Create(MSG_ITEM_MUST_BE_OBJECT);
+
         ItemData := TJSONObject(ItemsArray[I]);
         ProdId := ItemData.Get('product_id', Int64(0));
         Qty := ItemData.Get('quantity', 0.0);
 
         if (ProdId <= 0) or (Qty <= 0) then
-        begin
-          SendProblemResponse(AResp, 422, 'Validation Error', 'product_id e quantity positiva são obrigatórios em cada item.');
-          Exit;
-        end;
+          raise EUnprocessableEntity.Create(MSG_ITEM_FIELDS_REQUIRED);
 
         QProd := TDeltaQuery<TProduct>.Create(Lease);
         try
           Prod := QProd.FindById(ProdId);
           if Prod = nil then
-          begin
-            SendProblemResponse(AResp, 404, 'Product Not Found', Format('Produto #%d não encontrado.', [ProdId]));
-            Exit;
-          end;
+            raise ENotFound.CreateFmt(MSG_PRODUCT_NOT_FOUND, [ProdId]);
 
           if not Prod.active.AsBoolean then
           begin
+            ProdName := Prod.name.AsString;
             Prod.Free;
-            SendProblemResponse(AResp, 422, 'Product Inactive', Format('Produto #%d encontra-se inativo.', [ProdId]));
-            Exit;
+            raise EUnprocessableEntity.CreateFmt(MSG_PRODUCT_INACTIVE, [ProdId, ProdName]);
           end;
 
           if Prod.stock.AsFloat < Qty then
           begin
+            ProdName := Prod.name.AsString;
+            StockAvail := Prod.stock.AsFloat;
             Prod.Free;
-            SendProblemResponse(AResp, 422, 'Insufficient Stock',
-              Format('Estoque insuficiente para o produto "%s". Disponível: %.2f, Solicitado: %.2f',
-              [Prod.name.AsString, Prod.stock.AsFloat, Qty]));
-            Exit;
+            raise EUnprocessableEntity.CreateFmt(MSG_INSUFFICIENT_STOCK, [ProdName, StockAvail, Qty]);
           end;
 
           LinePrice := Prod.price.AsFloat;
@@ -308,12 +325,7 @@ begin
 
       // 3. Validar Limite de Crédito do Cliente
       if (Cust.credit_limit.AsFloat > 0) and (TotalAmount > Cust.credit_limit.AsFloat) then
-      begin
-        SendProblemResponse(AResp, 422, 'Credit Limit Exceeded',
-          Format('Limite de crédito do cliente excedido. Limite disponível: R$ %.2f, Total do pedido: R$ %.2f',
-          [Cust.credit_limit.AsFloat, TotalAmount]));
-        Exit;
-      end;
+        raise EUnprocessableEntity.CreateFmt(MSG_CREDIT_LIMIT_EXCEEDED, [Cust.credit_limit.AsFloat, TotalAmount]);
 
       // 4. Gravação Atômica (Transação Única)
       Lease.StartTransaction;
@@ -324,7 +336,7 @@ begin
           Order.customer_id.Value := CustomerId;
           Order.order_date.Value := Now;
           Order.total_amount.Value := TotalAmount;
-          Order.status.Value := 'CONFIRMED';
+          Order.status.Value := ORDER_STATUS_CONFIRMED;
 
           QOrder := TDeltaQuery<TSaleOrder>.Create(Lease);
           try
@@ -358,8 +370,8 @@ begin
             Order := QOrder.Include('items').FindById(Order.id.AsInt64);
             JsonBytes := TDeltaFastJsonStreamer.ModelToJson(Order);
 
-            AResp.Code := 201;
-            AResp.ContentType := 'application/json';
+            AResp.Code := HTTP_STATUS_CREATED;
+            AResp.ContentType := MIME_APPLICATION_JSON;
             AResp.Content := JsonBytes;
           finally
             QOrder.Free;
@@ -394,29 +406,20 @@ var
   I: Integer;
   JsonBytes: RawByteString;
 begin
-  OrderId := StrToInt64Def(AReq.RouteParams['id'], 0);
+  OrderId := StrToInt64Def(AReq.RouteParams[PARAM_ID], 0);
   if OrderId <= 0 then
-  begin
-    SendProblemResponse(AResp, 400, 'Bad Request', 'Identificador de pedido inválido.');
-    Exit;
-  end;
+    raise EBadRequest.Create(MSG_INVALID_ORDER_ID);
 
   Lease := OrderPool.Acquire;
   QOrder := TDeltaQuery<TSaleOrder>.Create(Lease);
   try
     Order := QOrder.Include('items').FindById(OrderId);
     if Order = nil then
-    begin
-      SendProblemResponse(AResp, 404, 'Not Found', Format('Pedido #%d não encontrado.', [OrderId]));
-      Exit;
-    end;
+      raise ENotFound.CreateFmt(MSG_ORDER_NOT_FOUND, [OrderId]);
 
     try
-      if SameText(Order.status.AsString, 'CANCELLED') then
-      begin
-        SendProblemResponse(AResp, 400, 'Order Already Cancelled', 'O pedido já se encontra cancelado.');
-        Exit;
-      end;
+      if SameText(Order.status.AsString, ORDER_STATUS_CANCELLED) then
+        raise EBadRequest.CreateFmt(MSG_ORDER_ALREADY_CANCELLED, [OrderId]);
 
       Lease.StartTransaction;
       try
@@ -442,14 +445,14 @@ begin
         end;
 
         // 2. Atualizar status do pedido
-        Order.status.Value := 'CANCELLED';
+        Order.status.Value := ORDER_STATUS_CANCELLED;
         TUpdate.UpdateObject(Lease, Order);
 
         Lease.Commit;
 
         JsonBytes := TDeltaFastJsonStreamer.ModelToJson(Order);
-        AResp.Code := 200;
-        AResp.ContentType := 'application/json';
+        AResp.Code := HTTP_STATUS_OK;
+        AResp.ContentType := MIME_APPLICATION_JSON;
         AResp.Content := JsonBytes;
       except
         Lease.Rollback;
@@ -471,53 +474,50 @@ begin
   // 1. CRUD de Produtos com política RBAC declarativa
   ProductRBAC := TZRBACPolicy<TProduct>.Create;
   ProductRBAC
-    .AllowRoles(caCreate, ['admin'])
-    .AllowRoles(caUpdate, ['admin'])
-    .AllowRoles(caDelete, ['admin']);
+    .AllowRoles(caCreate, [ROLE_ADMIN])
+    .AllowRoles(caUpdate, [ROLE_ADMIN])
+    .AllowRoles(caDelete, [ROLE_ADMIN]);
 
-  TZenithCrud<TProduct>.Create('/api/v1/products', OrderPool)
-    .WithTag('Produtos')
+  TZenithCrud<TProduct>.Create(PATH_PRODUCTS, OrderPool)
+    .WithTag(TAG_PRODUCTS)
     .WithRBAC(ProductRBAC)
     .Register;
 
   // 2. CRUD de Clientes
-  TZenithCrud<TCustomer>.Create('/api/v1/customers', OrderPool)
-    .WithTag('Clientes')
+  TZenithCrud<TCustomer>.Create(PATH_CUSTOMERS, OrderPool)
+    .WithTag(TAG_CUSTOMERS)
     .Register;
 
   // 3. RMS Orders API com TSwaggerRouteGroup fluente
-  Group := SwaggerRouter.Group('/api/v1/orders');
-  Group.Tag('Pedidos (RMS)');
+  Group := SwaggerRouter.Group(PATH_ORDERS)
+    .Tag(TAG_ORDERS)
+    .StandardProblems;
 
-  Group.Get('', @HandleGetOrders)
-    .SetSummary('Listar pedidos de venda')
-    .SetDescription('Retorna lista paginada de pedidos com opção de filtro por status')
-    .QueryParam('page', 'integer', '1', 'Número da página')
-    .QueryParam('page_size', 'integer', '10', 'Registros por página')
-    .QueryParam('status', 'string', '', 'Filtrar por status (ex: CONFIRMED, CANCELLED)')
-    .ProducesPaginated(200, 'TSaleOrder', 'Lista paginada de pedidos')
-    .ProducesStandardProblems;
+  Group.Get(PATH_SUB_ROOT, @HandleGetOrders)
+    .Summary(SUMMARY_LIST_ORDERS)
+    .Description(DESC_LIST_ORDERS)
+    .QueryParam(PARAM_PAGE, 'integer', '1', DOC_PARAM_PAGE)
+    .QueryParam(PARAM_PAGE_SIZE, 'integer', '10', DOC_PARAM_PAGE_SIZE)
+    .QueryParam(PARAM_STATUS, 'string', '', DOC_PARAM_STATUS)
+    .ProducesPaginated(HTTP_STATUS_OK, 'TSaleOrder', DOC_RESP_ORDERS_PAGINATED);
 
-  Group.Get('/:id', @HandleGetOrderById)
-    .SetSummary('Obter pedido por ID')
-    .SetDescription('Retorna dados detalhados do pedido incluindo a coleção de itens (Include eager loading)')
-    .PathParam('id', 'integer', 'ID numérico do pedido')
-    .Produces(200, 'TSaleOrder', 'Pedido completo com itens')
-    .ProducesStandardProblems;
+  Group.Get(PATH_SUB_BY_ID, @HandleGetOrderById)
+    .Summary(SUMMARY_GET_ORDER_BY_ID)
+    .Description(DESC_GET_ORDER_BY_ID)
+    .PathParam(PARAM_ID, 'integer', DOC_PARAM_ID)
+    .Produces(HTTP_STATUS_OK, 'TSaleOrder', DOC_RESP_ORDER_WITH_ITEMS);
 
-  Group.Post('', @HandleCreateOrder)
-    .SetSummary('Criar novo pedido de venda')
-    .SetDescription('Valida estoque disponível dos produtos, limite de crédito do cliente e efetua a baixa de estoque atômica')
-    .ConsumesJson('TSaleOrder', True, 'Payload do pedido com customer_id e array de items')
-    .Produces(201, 'TSaleOrder', 'Pedido criado com sucesso')
-    .ProducesStandardProblems;
+  Group.Post(PATH_SUB_ROOT, @HandleCreateOrder)
+    .Summary(SUMMARY_CREATE_ORDER)
+    .Description(DESC_CREATE_ORDER)
+    .ConsumesJson('TSaleOrder', True, DOC_PAYLOAD_ORDER)
+    .Produces(HTTP_STATUS_CREATED, 'TSaleOrder', DOC_RESP_ORDER_CREATED);
 
-  Group.Post('/:id/cancel', @HandleCancelOrder)
-    .SetSummary('Cancelar pedido de venda')
-    .SetDescription('Cancela o pedido e estorna atomicamente o saldo de estoque dos produtos')
-    .PathParam('id', 'integer', 'ID numérico do pedido')
-    .Produces(200, 'TSaleOrder', 'Pedido cancelado e estoque estornado')
-    .ProducesStandardProblems;
+  Group.Post(PATH_SUB_CANCEL, @HandleCancelOrder)
+    .Summary(SUMMARY_CANCEL_ORDER)
+    .Description(DESC_CANCEL_ORDER)
+    .PathParam(PARAM_ID, 'integer', DOC_PARAM_ID)
+    .Produces(HTTP_STATUS_OK, 'TSaleOrder', DOC_RESP_ORDER_CANCELLED);
 end;
 
 initialization

@@ -48,35 +48,50 @@ begin
     AResp.Code := StatusUnauthorized;
     Error := 'unauthorized';
     Title := TitleUnauthorized;
-    Detail := DetailUnauthorized;
+    if not E.Message.IsEmpty then
+      Detail := E.Message
+    else
+      Detail := DetailUnauthorized;
   end
   else if E is EForbidden then
   begin
     AResp.Code := StatusForbidden;
     Error := 'forbidden';
     Title := TitleForbidden;
-    Detail := DetailForbidden;
+    if not E.Message.IsEmpty then
+      Detail := E.Message
+    else
+      Detail := DetailForbidden;
   end
   else if (E is EResourceNotFound) or (E is ENotFound) then
   begin
     AResp.Code := StatusNotFound;
     Error := 'not-found';
     Title := TitleNotFound;
-    Detail := DetailNotFound;
+    if not E.Message.IsEmpty then
+      Detail := E.Message
+    else
+      Detail := DetailNotFound;
   end
   else if E is ETooManyRequests then
   begin
     AResp.Code := StatusTooManyRequests;
     Error := 'too-many-requests';
     Title := TitleTooManyRequests;
-    Detail := DetailTooManyRequests;
+    if not E.Message.IsEmpty then
+      Detail := E.Message
+    else
+      Detail := DetailTooManyRequests;
   end
   else if E is EConflict then
   begin
     AResp.Code := StatusConflict;
     Error := 'conflict';
     Title := TitleConflict;
-    Detail := DetailConflict;
+    if not E.Message.IsEmpty then
+      Detail := E.Message
+    else
+      Detail := DetailConflict;
   end
   else if E is EBadRequest then
   begin

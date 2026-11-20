@@ -14,6 +14,18 @@ uses
   DeltaModel.ORM.Pool,
   DeltaModel.ORM.Schema;
 
+const
+  { Status de Pedidos de Venda (RMS Starter) }
+  ORDER_STATUS_DRAFT     = 'DRAFT';
+  ORDER_STATUS_CONFIRMED = 'CONFIRMED';
+  ORDER_STATUS_CANCELLED = 'CANCELLED';
+
+  { Nomes de Tabelas }
+  TABLE_PRODUCTS         = 'products';
+  TABLE_CUSTOMERS        = 'customers';
+  TABLE_SALE_ORDERS      = 'sale_orders';
+  TABLE_SALE_ORDER_ITEMS = 'sale_order_items';
+
 type
   TSaleOrderItem = class;
 
@@ -113,7 +125,7 @@ uses
 procedure TProduct.Configure;
 begin
   inherited Configure;
-  TableName := 'products';
+  TableName := TABLE_PRODUCTS;
   id.DBOptions := [dboPrimaryKey, dboAutoInc];
   code.Size := 50;
   name.Size := 150;
@@ -124,7 +136,7 @@ end;
 procedure TCustomer.Configure;
 begin
   inherited Configure;
-  TableName := 'customers';
+  TableName := TABLE_CUSTOMERS;
   id.DBOptions := [dboPrimaryKey, dboAutoInc];
   name.Size := 150;
   document.Size := 30;
@@ -136,7 +148,7 @@ end;
 procedure TSaleOrder.Configure;
 begin
   inherited Configure;
-  TableName := 'sale_orders';
+  TableName := TABLE_SALE_ORDERS;
   id.DBOptions := [dboPrimaryKey, dboAutoInc];
   order_number.Size := 30;
   status.Size := 20;
@@ -148,7 +160,7 @@ end;
 procedure TSaleOrderItem.Configure;
 begin
   inherited Configure;
-  TableName := 'sale_order_items';
+  TableName := TABLE_SALE_ORDER_ITEMS;
   id.DBOptions := [dboPrimaryKey, dboAutoInc];
 end;
 
@@ -328,7 +340,7 @@ begin
         O.customer_id.Value := 1;
         O.order_date.Value := Now - 2;
         O.total_amount.Value := 10249.00;
-        O.status.Value := 'CONFIRMED';
+        O.status.Value := ORDER_STATUS_CONFIRMED;
         QOrder := TDeltaQuery<TSaleOrder>.Create(Engine);
         try
           QOrder.Insert(O);
@@ -382,7 +394,7 @@ begin
         O.customer_id.Value := 2;
         O.order_date.Value := Now - 1;
         O.total_amount.Value := 4398.00;
-        O.status.Value := 'CONFIRMED';
+        O.status.Value := ORDER_STATUS_CONFIRMED;
         QOrder := TDeltaQuery<TSaleOrder>.Create(Engine);
         try
           QOrder.Insert(O);
