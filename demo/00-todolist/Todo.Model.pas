@@ -15,7 +15,7 @@ type
   published
     property description: TDFStringRequired read FDescription write FDescription;
   public
-    procedure Validate; override;
+    class procedure ConfigureSchema(Schema: TDeltaModelSchema); override;
   end;
 
   TTodo = class(TTodoInsert)
@@ -27,6 +27,7 @@ type
     property id: TDFIntRequired read FId write FId;
   public
     procedure AfterConstruction; override;
+    class procedure ConfigureSchema(Schema: TDeltaModelSchema); override;
   end;
 
 procedure InitializeTodoStore;
@@ -39,11 +40,10 @@ implementation
 uses
   Zenith.Env, DeltaModel.ORM.Schema;
 
-procedure TTodoInsert.Validate;
+class procedure TTodoInsert.ConfigureSchema(Schema: TDeltaModelSchema);
 begin
-  inherited Validate;
-  if Length(description.Value.Trim) < 2 then
-    raise EDeltaValidation.Create('A descrição deve ter pelo menos 2 caracteres.');
+  inherited ConfigureSchema(Schema);
+  Schema.Field('description').MinLength(2);
 end;
 
 procedure TTodo.AfterConstruction;
@@ -51,6 +51,14 @@ begin
   inherited AfterConstruction;
   TableName := 'todo';
   id.DBOptions := [dboPrimaryKey, dboAutoInc];
+end;
+
+class procedure TTodo.ConfigureSchema(Schema: TDeltaModelSchema);
+begin
+  inherited ConfigureSchema(Schema);
+  Schema.Table('todo');
+  Schema.Field('id').AsPK.AutoInc;
+  Schema.Field('description').MinLength(2);
 end;
 
 procedure InitializeTodoStore;

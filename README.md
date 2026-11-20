@@ -13,8 +13,10 @@
 ## 🚀 Principais Recursos
 
 - ⚡ **Alta Performance & Concorrência**: Servidor HTTP embutido com suporte nativo a multi-threading (`fphttpapp`), modo FastCGI (`fpfcgi`) e arquitetura Zero-DOM.
-- 🚀 **Streaming JSON Direto & Zero-DOM**: Serialização ultrarrápida via `TDeltaFastJsonStreamer` direto para `RawByteString`, eliminando o overhead de nós DOM intermediários (`TJSONObject`) e formatando números decimais em ponto fixo (`ffFixed`) sem notação científica (`E+`/`E-`).
-- ⚡ **ORM com Binding Tipado Direto**: Mapeamento pré-alocado de colunas com `TColumnBindingMap` e cache de reflexão `TRTTICache`, eliminando conversões intermediárias por Variant em consultas de banco.
+- 🚀 **Roteador CRUD Automático (`Zenith.Crud`)**: Registro em 1 linha de 5 endpoints REST completos (`GET`, `GET :id`, `POST`, `PUT :id`, `DELETE :id`) fortemente tipados com validação, pool de conexões e documentação OpenAPI.
+- 🌐 **Internacionalização (i18n) e Mensagens Configuráveis**: Suporte unificado a múltiplos idiomas (`en-US`, `pt-BR`, `es-ES`) via `Zenith.Messages`, `DeltaModel.Messages` e `Swagger4Laz` (`ZENITH_LOCALE`, `SetZenithLocale`).
+- 🚀 **Streaming JSON Direto & Zero-DOM**: Serialização ultrarrápida via `TDeltaFastJsonStreamer` e streaming HTTP chunked em lotes (`TDeltaQuery<T>.StreamJsonTo`), eliminando consumo excessivo de memória em grandes volumes.
+- ⚡ **ORM com Binding Tipado Direto**: Mapeamento pré-alocado de colunas com `TColumnBindingMap`, Eager Loading 1:N com `Include` e cache de reflexão `TRTTICache`.
 - 📖 **Documentação OpenAPI 3.1 & Swagger UI**: Integração nativa com o [Swagger4Laz](src/swagger4laz), servindo documentação interativa com registro centralizado de schemas em `components.schemas` e referências canônicas `$ref` em `/docs`.
 - 🧩 **Modelagem, Validação & ORM com DeltaModel**: Integração direta com o [DeltaModel](src/deltamodel) para modelos fortemente tipados, validação fluente e persistência multi-SGDB.
 - 🛡️ **Erros Padronizados (RFC 7807)**: Respostas de erro ricas em JSON seguindo o padrão internacional *Problem Details for HTTP APIs*.
@@ -34,6 +36,8 @@
 Zenith/
 ├── src/
 │   ├── Zenith.App.pas         # Singleton da aplicação (TZenithApp) e inicialização
+│   ├── Zenith.Crud.pas        # Roteador e controlador CRUD REST automático com Generics
+│   ├── Zenith.Messages.pas    # Mensagens de erro e internacionalização RFC 7807 (i18n)
 │   ├── Zenith.Core.pas        # Pipeline de tratamento de exceções e middlewares
 │   ├── Zenith.Consts.pas      # Constantes HTTP, status codes e MIME types
 │   ├── Zenith.Types.pas       # Tipos base e formatador RFC 7807 (TJsonError)
@@ -43,10 +47,10 @@ Zenith/
 │   ├── Zenith.Hash.pas        # Funções criptográficas (HMAC-SHA256, SHA256, MD5)
 │   ├── Zenith.Env.pas         # Leitor de variáveis (.env / OS environment)
 │   ├── Zenith.Log.pas         # Logger thread-safe em arquivo e console
-│   ├── swagger4laz/           # Submódulo: Swagger UI e OpenAPI 3.0
-│   └── deltamodel/            # Submódulo: Modelagem, Validação e Micro-ORM
+│   ├── swagger4laz/           # Submódulo: Swagger UI e OpenAPI 3.1
+│   └── deltamodel/            # Submódulo: Modelagem, Validação e Micro-ORM Generics
 └── demo/
-    └── 00-todolist/           # Exemplo prático de API REST completa
+    └── 00-todolist/           # Exemplo prático de API REST completa com TZenithCrud
 ```
 
 ---

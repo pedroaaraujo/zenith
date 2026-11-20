@@ -6,8 +6,7 @@ interface
 
 uses
   Classes, SysUtils, custhttpapp, HTTPDefs, DeltaValidator, fpjson,
-
-  Zenith.Exceptions, Zenith.Log, Zenith.Consts, Zenith.Types, Zenith.Env;
+  Zenith.Exceptions, Zenith.Log, Zenith.Consts, Zenith.Types, Zenith.Env, Zenith.Messages;
 
 procedure ConfigureApplication(App: TCustomHTTPApplication);
 
@@ -24,87 +23,80 @@ begin
   AResp.ContentType := 'application/problem+json; charset=utf-8';
   AResp.Contents.Clear;
   Error := 'server-error';
-  Title := 'Não foi possível executar a operação.';
-  Detail := 'Ocorreu um erro interno.';
+  Title := TitleInternalServerError;
+  Detail := DetailInternalServerError;
   AResp.Code := StatusInternalServerError;
 
   CallStack := '';
 
-  if E is EDeltaValidation then
+  if (E is EDeltaValidation) or (E is EValidation) then
   begin
     AResp.Code := StatusBadRequest;
     Error := 'validation-error';
-    Title := 'Falha na validação dos dados.';
-    Detail := E.Message;
-  end
-  else if E is EValidation then
-  begin
-    AResp.Code := StatusBadRequest;
-    Error := 'validation-error';
-    Title := 'Falha na validação dos dados.';
+    Title := TitleValidationError;
     Detail := E.Message;
   end
   else if E is EMissingRequiredField then
   begin
     AResp.Code := StatusBadRequest;
     Error := 'missing-required-field';
-    Title := 'Campo obrigatório ausente.';
+    Title := TitleMissingRequiredField;
     Detail := E.Message;
   end
   else if E is EUnauthorized then
   begin
     AResp.Code := StatusUnauthorized;
     Error := 'unauthorized';
-    Title := 'Não autorizado.';
-    Detail := 'As credenciais informadas são inválidas.';
+    Title := TitleUnauthorized;
+    Detail := DetailUnauthorized;
   end
   else if E is EForbidden then
   begin
     AResp.Code := StatusForbidden;
     Error := 'forbidden';
-    Title := 'Acesso não permitido.';
-    Detail := E.Message;
+    Title := TitleForbidden;
+    Detail := DetailForbidden;
   end
   else if (E is EResourceNotFound) or (E is ENotFound) then
   begin
     AResp.Code := StatusNotFound;
     Error := 'not-found';
-    Title := 'Recurso não encontrado.';
-    Detail := E.Message;
+    Title := TitleNotFound;
+    Detail := DetailNotFound;
   end
   else if E is ETooManyRequests then
   begin
     AResp.Code := StatusTooManyRequests;
     Error := 'too-many-requests';
-    Title := 'Limite de requisições atingido.';
-    Detail := E.Message;
+    Title := TitleTooManyRequests;
+    Detail := DetailTooManyRequests;
   end
   else if E is EConflict then
   begin
     AResp.Code := StatusConflict;
     Error := 'conflict';
-    Title := 'Conflito nos dados informados.';
-    Detail := E.Message;
+    Title := TitleConflict;
+    Detail := DetailConflict;
   end
   else if E is EBadRequest then
   begin
     AResp.Code := StatusBadRequest;
     Error := 'bad-request';
-    Title := 'Requisição inválida.';
+    Title := TitleBadRequest;
     Detail := E.Message;
   end
   else if E is EUnprocessableEntity then
   begin
     AResp.Code := StatusUnprocessableEntity;
     Error := 'unprocessable-entity';
-    Title := 'Entidade improcessável.';
+    Title := TitleUnprocessableEntity;
     Detail := E.Message;
   end
   else if E is HTTPException then
   begin
     AResp.Code := StatusBadRequest;
     Error := 'bad-request';
-    Title := 'Requisição inválida.';
+    Title := TitleBadRequest;
     Detail := E.Message;
   end
   else if E is EServerError then

@@ -13,7 +13,8 @@ type
   EValidation = class(HTTPException);
   EConflict = class(HTTPException);
   EMissingRequiredField = class(HTTPException);
-  EUnknowError = class(HTTPException);
+  EUnknownError = class(HTTPException);
+  EUnknowError = EUnknownError; // Backward compatibility alias
   EUnauthorized = class(HTTPException);
   EForbidden = class(HTTPException);
   EResourceNotFound = class(HTTPException);
