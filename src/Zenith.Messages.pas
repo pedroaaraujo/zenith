@@ -75,6 +75,8 @@ function MsgCrudResponseUpdated: string;
 
 function MsgCrudSummaryDelete(const ATag: string): string;
 function MsgCrudResponseDeleted: string;
+function MsgCrudResponseUnauthorized: string;
+function MsgCrudResponseForbidden: string;
 
 implementation
 
@@ -295,6 +297,18 @@ const
     'Resource deleted',
     'Recurso excluído com sucesso',
     'Recurso eliminado con éxito'
+  );
+
+  STR_CRUD_RESPONSE_UNAUTHORIZED: array[TZenithLocale] of string = (
+    'Unauthorized',
+    'Não autenticado',
+    'No autenticado'
+  );
+
+  STR_CRUD_RESPONSE_FORBIDDEN: array[TZenithLocale] of string = (
+    'Forbidden',
+    'Acesso negado',
+    'Acceso denegado'
   );
 
 procedure SetZenithLocale(ALocale: TZenithLocale);
@@ -558,6 +572,16 @@ end;
 function MsgCrudResponseDeleted: string;
 begin
   Result := STR_CRUD_RESPONSE_DELETED[GCurrentLocale];
+end;
+
+function MsgCrudResponseUnauthorized: string;
+begin
+  Result := STR_CRUD_RESPONSE_UNAUTHORIZED[GCurrentLocale];
+end;
+
+function MsgCrudResponseForbidden: string;
+begin
+  Result := STR_CRUD_RESPONSE_FORBIDDEN[GCurrentLocale];
 end;
 
 initialization

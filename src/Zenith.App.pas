@@ -16,6 +16,7 @@ uses
   Zenith.Core,
   Zenith.Log,
   Zenith.Env,
+  Zenith.Security,
   Zenith.Exceptions;
 
 type
@@ -31,6 +32,7 @@ type
     function SetDocRoute(const ARoute: string): TZenithApp;
     function SetPort(const APort: Integer): TZenithApp;
     function SetQueueSize(const ASize: Word): TZenithApp;
+    function SetSecurityResolver(AResolver: IZenithSecurityResolver): TZenithApp;
     procedure Run;
     procedure AfterConstruction; override;
   end;
@@ -142,6 +144,12 @@ end;
 function TZenithApp.SetQueueSize(const ASize: Word): TZenithApp;
 begin
   Application.QueueSize := ASize;
+  Result := Self;
+end;
+
+function TZenithApp.SetSecurityResolver(AResolver: IZenithSecurityResolver): TZenithApp;
+begin
+  SetZenithSecurityResolver(AResolver);
   Result := Self;
 end;
 

@@ -19,7 +19,9 @@ implementation
 
 class procedure TTodoRouter.Register;
 begin
-  TZenithCrud<TTodo>.Register('/todo', 'ToDo', TodoPool);
+  TZenithCrud<TTodo>.Create('/todo', TodoPool)
+    .WithTag('ToDo')
+    .Register;
 end;
 
 initialization
