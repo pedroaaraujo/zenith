@@ -1,29 +1,28 @@
 <p align="right">
-  <b>Language / Idioma:</b>
-  <a href="README.md">English</a> |
-  <a href="README.pt-BR.md">Português (Brasil)</a> |
-  <a href="README.es-ES.md">Español</a>
+  [ English ](README.md) | [ Português (Brasil) ](README.pt-BR.md) | [ Español ](README.es-ES.md)
 </p>
 
 # Zenith
 
-[![Lazarus](https://img.shields.io/badge/Lazarus-2.2%2B-blue.svg)](https://www.lazarus-ide.org/)
-[![FreePascal](https://img.shields.io/badge/FPC-3.2.2%2B-green.svg)](https://www.freepascal.org/)
+[![Lazarus](https://img.shields.io/badge/Lazarus-%3E%3D%202.2-blue.svg)](https://www.lazarus-ide.org/)
+[![FreePascal](https://img.shields.io/badge/FPC-%3E%3D%203.2.2-green.svg)](https://www.freepascal.org/)
 [![OpenAPI](https://img.shields.io/badge/OpenAPI-3.1-brightgreen.svg)](https://swagger.io/specification/)
+[![Formatos](https://img.shields.io/badge/Formatos-JSON%20%7C%20CBOR%20%7C%20BSON%20%7C%20XML%20%7C%20CSV-orange.svg)](https://github.com/pedroaaraujo/zenith)
 [![RFC 7807](https://img.shields.io/badge/RFC-7807%20Compliant-orange.svg)](https://datatracker.ietf.org/doc/html/rfc7807)
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Licencia](https://img.shields.io/badge/Licencia-MIT-blue.svg)](LICENSE)
 
-**Zenith** es un framework web moderno, elegante y de alto rendimiento para **Free Pascal / Lazarus (FPC)**. Diseñado para proporcionar una experiencia de desarrollo backend ágil y contemporánea, Zenith integra documentación interactiva **OpenAPI 3.1 / Swagger UI**, modelado y validación con **Micro-ORM Multi-SGBD**, autenticación **JWT / Basic**, registro de logs estructurado y gestión estandarizada de errores bajo el estándar **RFC 7807**.
+**Zenith** es un framework web de alto rendimiento para **Free Pascal / Lazarus (FPC)**. Diseñado para proporcionar una experiencia de desarrollo backend ágil y contemporánea, Zenith integra documentación interactiva **OpenAPI 3.1 / Swagger UI**, modelado con **Micro-ORM Multi-SGBD**, **Serialización Multiformato** (JSON, CBOR, BSON, XML, CSV), autenticación **JWT / Basic**, registro de logs estructurado y gestión estandarizada de errores bajo el estándar **RFC 7807**.
 
 ---
 
 ## 🚀 Características Principales
 
-- ⚡ **Alto Rendimiento y Concurrencia**: Servidor HTTP integrado con soporte nativo para múltiples subprocesos (`fphttpapp`), modo FastCGI (`fpfcgi`) y arquitectura de flujo de bytes Zero-DOM.
+- ⚡ **Alta Concurrencia y Baja Latencia**: Servidor HTTP integrado con soporte nativo para múltiples subprocesos (`fphttpapp`), modo FastCGI (`fpfcgi`) y arquitectura de flujo de bytes Zero-DOM.
+- 📦 **Serialización Multiformato**: Códecs Zero-DOM para 5 formatos canónicos: JSON, CBOR (binario RFC 8949), BSON (binario v1.1), XML y CSV (RFC 4180).
 - 🚀 **Enrutador CRUD Automático (`Zenith.Crud`)**: Registro en 1 sola línea de 5 endpoints REST completos (`GET`, `GET :id`, `POST`, `PUT :id`, `DELETE :id`) fuertemente tipados con validación, pool de conexiones y documentación OpenAPI.
 - 🌐 **Internacionalización (i18n) y Mensajes Configurables**: Soporte multilingüe unificado (`en-US`, `pt-BR`, `es-ES`) mediante `Zenith.Messages`, `DeltaModel.Messages` y `Swagger4Laz` (`ZENITH_LOCALE`, `SetZenithLocale`).
-- 🚀 **Streaming JSON Directo y Zero-DOM**: Serialización de alto rendimiento con `TDeltaFastJsonStreamer` y transmisión HTTP fragmentada por lotes (`TDeltaQuery<T>.StreamJsonTo`), eliminando el consumo excesivo de heap en grandes volúmenes de datos.
-- ⚡ **ORM con Vinculación Tipada Directa**: Asignación de columnas precalculada con `TColumnBindingMap`, Eager Loading 1:N mediante `Include` y caché de reflexión estática segura para hilos `TRTTICache`.
+- 🚀 **Streaming Directo y Zero-DOM**: Serialización de alto rendimiento con `TDeltaFastJsonStreamer`, `TDeltaCborCodec`, `TDeltaBsonCodec`, `TDeltaXmlCodec`, `TDeltaCsvCodec` y transmisión HTTP fragmentada por lotes (`TDeltaQuery<T>.StreamJsonTo`).
+- ⚡ **ORM con Vinculación Tipada Directa**: Asignación de columnas precalculada con `TColumnBindingMap`, Eager Loading 1:N mediante `Include` y caché de reflexión estática `TRTTICache`.
 - 📖 **Documentación OpenAPI 3.1 y Swagger UI**: Integración nativa con [Swagger4Laz](src/swagger4laz), sirviendo documentación interactiva con registro centralizado de esquemas en `components.schemas` y referencias canónicas `$ref` en `/docs`.
 - 🧩 **Modelado, Validación y ORM con DeltaModel**: Integración directa con [DeltaModel](src/deltamodel) para modelos fuertemente tipados, reglas de validación fluidas y persistencia multi-SGBD (PostgreSQL, MariaDB/MySQL, SQLite, Firebird, MSSQL, Oracle).
 - 🛡️ **Errores Estandarizados (RFC 7807)**: Respuestas JSON ricas en detalles conforme a la especificación *Problem Details for HTTP APIs*.
@@ -31,7 +30,7 @@
   - Soporte completo para **JWT (JSON Web Token)** con creación, firma HMAC-SHA256, expiración y validación automática.
   - Autenticación estándar **HTTP Basic**.
 - ⚙️ **Configuración mediante `.env`**: Carga transparente de variables de entorno del sistema operativo y archivos `.env` locales.
-- 📝 **Logging Estructurado y Seguro**: Registro automático de peticiones, trazas de error y niveles configurables de severidad (`INFO`, `WARN`, `ERROR`).
+- 📝 **Logging Estructurado Thread-Safe**: Registro automático de peticiones, trazas de error y niveles configurables de severidad (`INFO`, `WARN`, `ERROR`).
 - 🌐 **CORS Automático**: Gestión configurable de solicitudes preliminares `OPTIONS` y encabezados CORS detallados.
 - 🔄 **Listo para Proxies Inversos**: Compatibilidad nativa con Nginx, Traefik, Apache y Caddy (incluyendo `X-Forwarded-Prefix`).
 
@@ -46,7 +45,8 @@ Zenith/
 │   ├── Zenith.Crud.pas        # Enrutador y controlador CRUD REST genérico automático
 │   ├── Zenith.Messages.pas    # Mensajes de error e internacionalización RFC 7807 (i18n)
 │   ├── Zenith.Core.pas        # Pipeline de middleware y despachador centralizado de excepciones
-│   ├── Zenith.Consts.pas      # Constantes HTTP, códigos de estado y tipos MIME
+│   ├── Zenith.Constants.pas   # Media types canónicos, códigos de estado y encabezados HTTP
+│   ├── Zenith.Consts.pas      # Constantes HTTP, códigos de estado y tipos MIME heredados
 │   ├── Zenith.Types.pas       # Tipos base y formateador JSON RFC 7807 (TJsonError)
 │   ├── Zenith.Exceptions.pas  # Jerarquía de excepciones semánticas HTTP
 │   ├── Zenith.Auth.JWT.pas    # Creación, firma y validación de tokens JWT
@@ -55,9 +55,10 @@ Zenith/
 │   ├── Zenith.Env.pas         # Cargador de configuración (.env / entorno del SO)
 │   ├── Zenith.Log.pas         # Logger seguro para subprocesos en archivo y consola
 │   ├── swagger4laz/           # Submódulo: Swagger UI y OpenAPI 3.1
-│   └── deltamodel/            # Submódulo: Modelado, Validación y Micro-ORM con Genéricos
+│   └── deltamodel/            # Submódulo: Modelado, Códecs Multiformato y Micro-ORM Genérico
 └── demo/
-    └── 00-todolist/           # Ejemplo práctico de API REST completa con SQLite y TZenithCrud
+    ├── 00-todolist/           # Ejemplo práctico de API REST con SQLite y TZenithCrud
+    └── 01-order-management/   # RMS Starter completo con productos, pedidos, RBAC y multiformato
 ```
 
 ---
@@ -77,7 +78,6 @@ uses
   {$ENDIF}
   Classes, SysUtils, fphttpapp,
   Zenith.App,
-  // Sus modelos y rutas
   User.Model, User.Route;
 
 begin
@@ -159,7 +159,7 @@ interface
 
 uses
   Classes, SysUtils, HTTPDefs,
-  Zenith.App, Zenith.Consts, Zenith.Exceptions,
+  Zenith.App, Zenith.Constants, Zenith.Exceptions,
   User.Model, DeltaModel;
 
 type
@@ -185,65 +185,29 @@ begin
 
   User := TUserResponse.Create;
   try
-    // Acceso tipado directo sin conversión Variant
     User.id.AsInteger := UserId;
     User.name.AsText := 'Juan Pérez';
     User.email.AsText := 'juan.perez@empresa.com';
 
-    AResponse.Code := StatusOK;
-    AResponse.ContentType := ApplicationJson;
+    AResponse.Code := HTTP_STATUS_OK;
+    AResponse.ContentType := MIME_APPLICATION_JSON;
     AResponse.Content := User.ToJson;
   finally
     User.Free;
   end;
 end;
 
-// Controlador: POST /users
-procedure CreateUser(ARequest: TRequest; AResponse: TResponse);
-var
-  InputData: TUserInsert;
-  NewUser: TUserResponse;
-begin
-  InputData := TUserInsert.Create;
-  NewUser := TUserResponse.Create;
-  try
-    InputData.FromJson(ARequest.Content);
-    InputData.Validate; // Lanza EDeltaValidation ante errores de validación
-
-    // Asignación tipada directa sin conversión Variant
-    NewUser.id.AsInteger := 101;
-    NewUser.name.AsText := InputData.name.AsString;
-    NewUser.email.AsText := InputData.email.AsString;
-
-    AResponse.Code := StatusCreated;
-    AResponse.ContentType := ApplicationJson;
-    AResponse.Content := NewUser.ToJson;
-  finally
-    NewUser.Free;
-    InputData.Free;
-  end;
-end;
-
 class procedure TUserRouter.Register;
 begin
-  // Registro de ruta vinculando referencia canónica $ref de OpenAPI
   Router
     .Get('/users/:id', @GetUser)
     .SetSummary('Buscar usuario por ID')
     .AddTags('Usuarios')
     .AddPathParam('id', True, 'integer', '1', 'Identificador único del usuario')
-    .AddResponseRef(StatusOK, 'UserResponse', 'Usuario localizado')
-    .AddResponse(StatusBadRequest, 'Parámetro de solicitud inválido')
-    .AddResponse(StatusNotFound, 'Usuario no encontrado');
-
-  // POST /users con carga útil y respuesta tipadas registradas en components.schemas
-  Router
-    .Post('/users', @CreateUser)
-    .SetSummary('Registrar nuevo usuario')
-    .AddTags('Usuarios')
-    .SetBodyContentRef('UserInsert', True, ApplicationJson, 'Datos de registro del usuario')
-    .AddResponseRef(StatusCreated, 'UserResponse', 'Usuario creado exitosamente')
-    .AddResponse(StatusBadRequest, 'Fallo en la validación de campos');
+    .AddResponseRef(HTTP_STATUS_OK, 'UserResponse', 'Usuario localizado', MIME_APPLICATION_JSON)
+    .AddResponseRef(HTTP_STATUS_OK, 'UserResponse', 'Payload binario CBOR', MIME_APPLICATION_CBOR)
+    .AddResponse(HTTP_STATUS_BAD_REQUEST, 'Parámetro de solicitud inválido')
+    .AddResponse(HTTP_STATUS_NOT_FOUND, 'Usuario no encontrado');
 end;
 
 initialization
@@ -253,22 +217,66 @@ end.
 
 ---
 
+## 📦 Negociación de Contenido Multiformato (JSON, CBOR, BSON, XML, CSV)
+
+Zenith utiliza la arquitectura de códecs Zero-DOM de DeltaModel (`IDeltaCodec` y `TDeltaCodecRegistry`) para serializar respuestas dinámicamente según la cabecera `Accept` o la configuración del endpoint.
+
+### Formatos y Media Types Compatibles
+
+| Formato | Clase del Códec | Media Types Canónicos | Estándar |
+| :--- | :--- | :--- | :--- |
+| **JSON** | `TDeltaJsonCodec` | `application/json` | RFC 8259 |
+| **CBOR** | `TDeltaCborCodec` | `application/cbor` | RFC 8949 (Binario) |
+| **BSON** | `TDeltaBsonCodec` | `application/bson` | BSON v1.1 (Binario) |
+| **XML**  | `TDeltaXmlCodec`  | `application/xml`, `text/xml` | W3C XML 1.0 (Zero-DOM) |
+| **CSV**  | `TDeltaCsvCodec`  | `text/csv` | RFC 4180 |
+
+### Matriz de Tradeoffs Técnicos
+
+- **CBOR (`application/cbor`)**:
+  - *Tamaño del payload*: ~40-60% menor que JSON.
+  - *Características*: Coma flotante IEEE 754 directa, empaquetado de enteros (0..23 inline), cero coste de conversión a texto.
+  - *Ideal para*: Dispositivos IoT, aplicaciones móviles (Flutter), comunicación inter-microservicios de alto rendimiento.
+- **BSON (`application/bson`)**:
+  - *Tamaño del payload*: Similar a JSON; prefijado con el tamaño total en 32 bits.
+  - *Características*: Tipado binario enriquecido (UTC datetime en ms, enteros de 64 bits, BLOBs binarios).
+  - *Ideal para*: Bases de datos documentales, analítica, interoperabilidad con MongoDB.
+- **CSV (`text/csv`)**:
+  - *Tamaño del payload*: Muy compacto para tablas planas.
+  - *Características*: Conforme con RFC 4180, cabecera automática, escape de comillas dobles, marcas de tiempo ISO-8601.
+  - *Ideal para*: Exportaciones masivas, informes financieros, hojas de cálculo.
+- **XML (`application/xml`)**:
+  - *Tamaño del payload*: ~20-40% mayor que JSON por etiquetas de cierre.
+  - *Características*: Declaración UTF-8 estándar, escape estricto de entidades, etiquetas autocerradas para valores nulos.
+  - *Ideal para*: Integraciones corporativas enterprise, cumplimiento bancario/fiscal, sistemas SOAP/XML heredados.
+- **JSON (`application/json`)**:
+  - *Tamaño del payload*: Línea de base estándar.
+  - *Características*: Compatibilidad universal en navegadores y SPAs, números en coma fija decimal (`ffFixed`).
+  - *Ideal para*: APIs públicas REST y aplicaciones web JavaScript.
+
+### Protecciones de Seguridad (RFC 8949 Sección 10 y BSON Anti-DoS)
+
+Los decodificadores binarios incorporan defensas activas:
+- **Anti-OOM (Prevención de Agotamiento de Memoria)**: Validación rigurosa de longitud antes de alocar búferes con `SetLength`. Si la longitud supera los bytes restantes del stream o excede `16 MB`, se interrumpe de inmediato con `EDeltaDeserializationException`.
+- **Límite Estricto de Recursión**: El techo de `MAX_NESTING_DEPTH = 64` previene ataques de desbordamiento de pila por estructuras maliciosas profundamente anidadas.
+- **Control de CStrings Nulas**: `MAX_BSON_CSTRING_LENGTH = 1024` evita bucles infinitos ante documentos BSON sin terminador `0x00`.
+
+---
+
 ## 📖 Documentación OpenAPI 3.1 y Registro Canónico de Esquemas
 
-Zenith presenta una profunda integración nativa entre su enrutador HTTP, el motor de documentación [Swagger4Laz](src/swagger4laz) y los modelos fuertemente tipados de [DeltaModel](src/deltamodel).
+Zenith presenta integración nativa entre su enrutador HTTP, [Swagger4Laz](src/swagger4laz) y los modelos de [DeltaModel](src/deltamodel).
 
 ### 1. Registro Automático en `components.schemas`
 Durante el inicio de la aplicación, Zenith vincula automáticamente un manejador de esquemas bidireccional:
 
 ```pascal
-// Registrado automáticamente en la unidad Zenith.App:
 SetDeltaModelRegisterSchemaProc(@ZenithRegisterModelProc);
 ```
 
 Cada vez que un modelo se referencia en una ruta de la API, se registra de manera automática, idempotente y segura para hilos en el diccionario `components.schemas` de OpenAPI 3.1.
 
 ### 2. Métodos de Generación Semántica de Esquemas en DeltaModel
-Evite métodos heredados no tipados. Utilice los generadores explícitos:
 
 | Método | Tipo en el Esquema | Formato OpenAPI |
 | :--- | :--- | :--- |
@@ -279,54 +287,21 @@ Evite métodos heredados no tipados. Utilice los generadores explícitos:
 | `TModel.SwaggerSchemaRefArray` | `array` | `{"type": "array", "items": {"$ref": "#/components/schemas/ModelName"}}` |
 | `TModel.SwaggerSchemaRefPaginated` | `object` | Envoltorio paginado con `$ref` en `items` |
 
-### 3. Ejemplo Práctico en Endpoints Empresariales
-
-```pascal
-procedure RegisterProductRoutes;
-begin
-  // GET /productos - Lista paginada referenciando components.schemas
-  Router
-    .Get('/productos', @ListProducts)
-    .SetSummary('Listar productos con paginación')
-    .AddTags('Productos')
-    .AddQueryParam('page', False, 'integer', '1', 'Página actual')
-    .AddQueryParam('page_size', False, 'integer', '20', 'Registros por página')
-    .AddResponse(StatusOK, 'Lista paginada de productos', TProductResponse.SwaggerSchemaRefPaginated);
-
-  // POST /productos - Registro con cuerpo de solicitud y respuesta tipados
-  Router
-    .Post('/productos', @CreateProduct)
-    .SetSummary('Crear nuevo producto')
-    .AddTags('Productos')
-    .SetBodyContent(TProductInsert.SwaggerSchemaObject(), True, ApplicationJson, 'Datos del producto')
-    .AddResponse(StatusCreated, 'Producto creado', TProductResponse.SwaggerSchemaRefObject)
-    .AddResponse(StatusBadRequest, 'Error de validación');
-end;
-```
-
 ---
 
 ## ⚡ Arquitectura de Alto Rendimiento de Zenith
 
-Para responder a entornos empresariales de alta demanda y múltiples inquilinos con un consumo mínimo de recursos, Zenith elimina los cuellos de botella clásicos de Free Pascal:
-
 ### 1. `TDeltaFastJsonStreamer`: Transmisión JSON Directa (Zero-DOM)
-Los métodos convencionales (`fpjson`) instancian cientos de nodos DOM intermedios (`TJSONObject`, `TJSONData`, `TJSONFloat`) en el heap para cada registro retornado, generando fragmentación de memoria y sobrecarga en el recolector de basura.
-
-Zenith transmite bytes crudos directamente a búferes continuos `RawByteString`:
-- **Cero Asignación DOM**: Genera cargas útiles JSON directamente sin crear árboles de objetos.
-- **Formateo de Punto Fijo (`ffFixed`) sin Notación Científica**: El `fpjson` estándar de FPC formatea números en coma flotante grandes o pequeños con notación exponencial (`1.5E+06` o `1.0E-04`), rompiendo parsers en clientes JavaScript y móviles. `TDeltaFastJsonStreamer` formatea estrictamente en punto fijo decimal (`FloatToStrF` con `ffFixed`) con eliminación inteligente de ceros superfluos, garantizando precisión contable y fiscal.
+Zenith transmite bytes directamente a búferes `RawByteString` contiguos sin instanciar árboles de objetos en el heap:
+- **Cero Asignación DOM**: Genera cargas útiles JSON directamente sin crear nodos intermedios.
+- **Formateo de Punto Fijo (`ffFixed`) sin Notación Científica**: El `fpjson` estándar formatea valores numéricos en notación exponencial (`1.5E+06`), rompiendo analizadores móviles y JavaScript. `TDeltaFastJsonStreamer` formatea estrictamente en coma fija decimal (`ffFixed`) eliminando ceros superfluos.
 
 ### 2. `TColumnBindingMap`: Vinculación ORM Tipada Directa Sin Conversión Variant
-La extracción tradicional de `TDataSet` utiliza propiedades `Variant` (`Field.Value`), incurriendo en costos de empaquetado y despacho OLE/COM.
-
-Con `TColumnBindingMap`:
 - Las correspondencias entre columnas y propiedades se resuelven una sola vez en la primera fila de la consulta.
 - Los datos se leen directamente con métodos nativos tipados (`ADS.Fields[I].AsLargeInt`, `ADS.Fields[I].AsString`, `ADS.Fields[I].AsFloat`).
 - Elimina totalmente las conversiones de Variant en consultas con decenas de miles de registros.
 
 ### 3. `TRTTICache` & `TModelMetadata`: Caché RTTI Estática Segura para Hilos
-La inspección repetitiva de RTTI (`TypInfo.GetPropList`) durante la serialización, validación y migraciones se evita mediante una caché en memoria protegida por secciones críticas:
 - Las propiedades publicadas de cada clase se inspeccionan e indexan solo una vez.
 - Las consultas en tiempo de ejecución se realizan en tiempo constante $O(1)$.
 
@@ -366,8 +341,6 @@ Cuando se produce una excepción semántica en cualquier controlador, Zenith la 
 
 Zenith incluye soporte nativo para tokens JSON Web Tokens firmados con HMAC-SHA256 (`Zenith.Auth.JWT`):
 
-### Generación de un Token
-
 ```pascal
 uses Zenith.Auth.JWT;
 
@@ -381,28 +354,7 @@ begin
     Payload.CustomValues['email'] := 'usuario@empresa.com';
     Payload.CustomValues['role'] := 'admin';
 
-    // exp e iat se gestionan automáticamente o pueden definirse manualmente
     Token := TJWT.GenerateToken(Payload);
-  finally
-    Payload.Free;
-  end;
-end;
-```
-
-### Validación de un Token en el Controlador de Ruta
-
-```pascal
-var
-  AuthHeader, Token: string;
-  Payload: TPayLoad;
-begin
-  AuthHeader := ARequest.Authorization; // "Bearer eyJhbGciOi..."
-  Token := StringReplace(AuthHeader, 'Bearer ', '', [rfIgnoreCase]).Trim;
-
-  // Lanza EUnauthorized automáticamente si ha expirado, está malformado o es inválido
-  Payload := TJWT.ValidadeToken(Token);
-  try
-    WriteLn('Usuario autenticado: ', Payload.CustomValues['email']);
   finally
     Payload.Free;
   end;
@@ -424,20 +376,6 @@ ZENITH_LOGFILE=zenith.log
 ZENITH_JWT_SECRET=su-clave-secreta-jwt-muy-segura-aqui
 ZENITH_JWT_EXPIRATION=30
 ZENITH_TODO_DATABASE=/var/lib/myapi/todo.sqlite
-```
-
-Las variables de entorno del sistema operativo tienen prioridad sobre las entradas de `.env`. Para cookies del navegador o peticiones CORS con credenciales, defina un origen explícito en `ZENITH_CORS_ORIGIN` y active credenciales. El comodín `*` no puede combinarse con credenciales.
-
-Consulte variables de entorno directamente en Pascal:
-
-```pascal
-uses Zenith.Env;
-
-var
-  MiValor: string;
-begin
-  MiValor := GetEnvVariable('MI_VARIABLE', 'ValorPorDefecto');
-end;
 ```
 
 ---
@@ -464,38 +402,18 @@ WantedBy=multi-user.target
 ```
 
 ### Modo FastCGI (Nginx / Apache)
-Para compilar en modo FastCGI con pool de conexiones, use la directiva de compilación `-dFCGI`:
+Compile con la directiva `-dFCGI`:
 
 ```bash
 lazbuild -B -dFCGI myapi.lpi
-```
-
-Ejemplo de configuración en **Nginx**:
-```nginx
-server {
-    listen 80;
-    server_name api.empresa.com;
-
-    location / {
-        fastcgi_pass 127.0.0.1:9000;
-        include fastcgi_params;
-        fastcgi_param SCRIPT_NAME "";
-        fastcgi_param HTTP_X_FORWARDED_PREFIX "";
-    }
-}
 ```
 
 ---
 
 ## 📁 Demostraciones Incluidas
 
-1. [`demo/00-todolist`](demo/00-todolist) — API básica de tareas con SQLite (CRUD completo con OpenAPI 3.1 y Swagger UI).
-2. [`demo/01-order-management`](demo/01-order-management) — API empresarial de Comercio y Gestión de Pedidos (RMS Starter):
-   - Modelado de dominio: `TProduct`, `TCustomer`, `TSaleOrder` y `TSaleOrderItem` con mapeo relacional 1:N (`Include('items')`).
-   - RBAC declarativo con `TZRBACPolicy<TProduct>` para restringir mutaciones al rol `admin`.
-   - Agrupación fluida de rutas con `SwaggerRouter.Group('/api/v1/orders')`.
-   - Transacciones atómicas: validación de límite de crédito, reserva de inventario en tiempo real y cancelación con reposición de stock.
-   - Documentación en tres idiomas ([Español](demo/01-order-management/README.es-ES.md), [English](demo/01-order-management/README.md), [Português](demo/01-order-management/README.pt-BR.md)).
+- [`demo/00-todolist`](demo/00-todolist): API REST SQLite minimalista con `Zenith.App`, `TZenithCrud` y Swagger UI.
+- [`demo/01-order-management`](demo/01-order-management): RMS Starter corporativo completo que abarca Productos, Clientes, Pedidos, relaciones 1:N (`Include`), RBAC, respuestas multiformato y Swagger UI interactivo.
 
 ---
 
