@@ -15,7 +15,7 @@ type
   published
     property description: TDFStringRequired read FDescription write FDescription;
   public
-    class procedure ConfigureSchema(Schema: TDeltaModelSchema); override;
+    class procedure ConfigureSchema(ASchema: TDeltaModelSchema); override;
   end;
 
   TTodo = class(TTodoInsert)
@@ -27,7 +27,7 @@ type
     property id: TDFIntRequired read FId write FId;
   public
     procedure AfterConstruction; override;
-    class procedure ConfigureSchema(Schema: TDeltaModelSchema); override;
+    class procedure ConfigureSchema(ASchema: TDeltaModelSchema); override;
   end;
 
 procedure InitializeTodoStore;
@@ -40,10 +40,10 @@ implementation
 uses
   Zenith.Env, DeltaModel.ORM.Schema;
 
-class procedure TTodoInsert.ConfigureSchema(Schema: TDeltaModelSchema);
+class procedure TTodoInsert.ConfigureSchema(ASchema: TDeltaModelSchema);
 begin
-  inherited ConfigureSchema(Schema);
-  Schema.Field('description').MinLength(2);
+  inherited ConfigureSchema(ASchema);
+  ASchema.Field('description').MinLength(2);
 end;
 
 procedure TTodo.AfterConstruction;
@@ -53,12 +53,12 @@ begin
   id.DBOptions := [dboPrimaryKey, dboAutoInc];
 end;
 
-class procedure TTodo.ConfigureSchema(Schema: TDeltaModelSchema);
+class procedure TTodo.ConfigureSchema(ASchema: TDeltaModelSchema);
 begin
-  inherited ConfigureSchema(Schema);
-  Schema.Table('todo');
-  Schema.Field('id').AsPK.AutoInc;
-  Schema.Field('description').MinLength(2);
+  inherited ConfigureSchema(ASchema);
+  ASchema.Table('todo');
+  ASchema.Field('id').AsPK.AutoInc;
+  ASchema.Field('description').MinLength(2);
 end;
 
 procedure InitializeTodoStore;
