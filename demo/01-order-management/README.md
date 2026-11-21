@@ -46,14 +46,36 @@ A comprehensive enterprise-grade demonstration of **Zenith HTTP Framework**, **D
 - SQLite 3 runtime library (`libsqlite3.so` on Linux or `sqlite3.dll` on Windows).
 
 ### Compilation
+
+#### Option 1: Free Pascal Compiler (`fpc`)
+
+Compile directly with `fpc` using a temporary build folder to keep the repository clean:
+
 ```bash
-lazbuild zenith/demo/01-order-management/order_management.lpi
+mkdir -p /tmp/zenith_order_build
+cd demo/01-order-management
+
+fpc -MDelphi -Scghi -O2 \
+  -FE/tmp/zenith_order_build \
+  -FU/tmp/zenith_order_build \
+  -Fu../../src \
+  -Fu../../src/deltamodel/src \
+  -Fu../../src/swagger4laz \
+  -Fu. \
+  order_management.lpr
+```
+
+#### Option 2: Lazarus (`lazbuild`)
+
+```bash
+lazbuild demo/01-order-management/order_management.lpi
 ```
 
 ### Execution
 Run the standalone executable:
 ```bash
-./zenith/demo/01-order-management/order_management
+ZENITH_ORDER_DATABASE=/tmp/zenith_order_build/orders.sqlite \
+  /tmp/zenith_order_build/order_management
 ```
 
 *By default, the server binds to port `8080` (or the port defined by the `PORT` / `ZENITH_PORT` environment variables).*

@@ -46,14 +46,36 @@ Exemplo corporativo completo demonstrando o **Zenith HTTP Framework**, o ORM **D
 - Biblioteca nativa do SQLite 3 (`libsqlite3.so` no Linux ou `sqlite3.dll` no Windows).
 
 ### Compilação
+
+#### Opção 1: Free Pascal Compiler (`fpc`)
+
+Compile diretamente com `fpc` utilizando um diretório temporário para manter o repositório limpo:
+
 ```bash
-lazbuild zenith/demo/01-order-management/order_management.lpi
+mkdir -p /tmp/zenith_order_build
+cd demo/01-order-management
+
+fpc -MDelphi -Scghi -O2 \
+  -FE/tmp/zenith_order_build \
+  -FU/tmp/zenith_order_build \
+  -Fu../../src \
+  -Fu../../src/deltamodel/src \
+  -Fu../../src/swagger4laz \
+  -Fu. \
+  order_management.lpr
+```
+
+#### Opção 2: Lazarus (`lazbuild`)
+
+```bash
+lazbuild demo/01-order-management/order_management.lpi
 ```
 
 ### Execução
 Execute o binário diretamente:
 ```bash
-./zenith/demo/01-order-management/order_management
+ZENITH_ORDER_DATABASE=/tmp/zenith_order_build/orders.sqlite \
+  /tmp/zenith_order_build/order_management
 ```
 
 *Por padrão, o servidor escuta na porta `8080` (ou na porta configurada nas variáveis de ambiente `PORT` ou `ZENITH_PORT`).*

@@ -96,7 +96,7 @@ procedure RegisterOrderDemoRoutes;
 
 implementation
 
-{ GET /api/v1/orders - Listar Pedidos de Venda }
+{ GET /api/v1/orders - List Sales Orders }
 procedure HandleGetOrders(AReq: TRequest; AResp: TResponse);
 var
   Page, PageSize, TotalRecords, TotalPages: Integer;
@@ -393,7 +393,7 @@ begin
   end;
 end;
 
-{ POST /api/v1/orders/:id/cancel - Cancelar Pedido e Estornar Estoque }
+{ POST /api/v1/orders/:id/cancel - Cancel Order and Restore Stock }
 procedure HandleCancelOrder(AReq: TRequest; AResp: TResponse);
 var
   OrderId: Int64;
@@ -483,7 +483,7 @@ begin
     .WithRBAC(ProductRBAC)
     .Register;
 
-  // 2. CRUD de Clientes
+  // 2. Customers CRUD
   TZenithCrud<TCustomer>.Create(PATH_CUSTOMERS, OrderPool)
     .WithTag(TAG_CUSTOMERS)
     .Register;

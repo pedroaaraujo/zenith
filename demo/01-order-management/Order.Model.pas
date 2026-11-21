@@ -15,7 +15,7 @@ uses
   DeltaModel.ORM.Schema;
 
 const
-  { Status de Pedidos de Venda (RMS Starter) }
+  { Sales Order Status (RMS Starter) }
   ORDER_STATUS_DRAFT     = 'DRAFT';
   ORDER_STATUS_CONFIRMED = 'CONFIRMED';
   ORDER_STATUS_CANCELLED = 'CANCELLED';
@@ -49,7 +49,7 @@ type
     property active: TDFBooleanRequired read FActive write FActive;
   end;
 
-  { TCustomer - Cadastro de Clientes }
+  { TCustomer - Customer Registry }
   TCustomer = class(TDeltaModel)
   private
     FId: TDFInt64Null;
@@ -89,7 +89,7 @@ type
     property items: TDFHasMany read FItems write FItems;
   end;
 
-  { TSaleOrderItem - Item de Pedido de Venda }
+  { TSaleOrderItem - Sales Order Line Item }
   TSaleOrderItem = class(TDeltaModel)
   private
     FId: TDFInt64Null;

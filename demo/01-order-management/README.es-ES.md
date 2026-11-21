@@ -46,14 +46,36 @@ Demostración empresarial completa del **Framework HTTP Zenith**, el ORM **Delta
 - Biblioteca compartida de SQLite 3 (`libsqlite3.so` en Linux o `sqlite3.dll` en Windows).
 
 ### Compilación
+
+#### Opción 1: Free Pascal Compiler (`fpc`)
+
+Compile directamente con `fpc` utilizando un directorio temporal para mantener limpio el repositorio:
+
 ```bash
-lazbuild zenith/demo/01-order-management/order_management.lpi
+mkdir -p /tmp/zenith_order_build
+cd demo/01-order-management
+
+fpc -MDelphi -Scghi -O2 \
+  -FE/tmp/zenith_order_build \
+  -FU/tmp/zenith_order_build \
+  -Fu../../src \
+  -Fu../../src/deltamodel/src \
+  -Fu../../src/swagger4laz \
+  -Fu. \
+  order_management.lpr
+```
+
+#### Opción 2: Lazarus (`lazbuild`)
+
+```bash
+lazbuild demo/01-order-management/order_management.lpi
 ```
 
 ### Ejecución
 Inicie el ejecutable compilado:
 ```bash
-./zenith/demo/01-order-management/order_management
+ZENITH_ORDER_DATABASE=/tmp/zenith_order_build/orders.sqlite \
+  /tmp/zenith_order_build/order_management
 ```
 
 *Por defecto, el servicio se vincula al puerto `8080` (o al indicado en las variables de entorno `PORT` o `ZENITH_PORT`).*
