@@ -26,6 +26,7 @@ type
   TRouteMethods = set of TRouteMethod;
   TRouteOption = (roCaseSensitive, roEmptyMatchesAll);
   TRouteOptions = set of TRouteOption;
+  TArrayOfString = array of string;
 
   { THTTPRoute }
 
@@ -34,15 +35,18 @@ type
     FDefault: Boolean;
     FMethod: TRouteMethod;
     FURLPattern: String;
+    FPatternSegments: TArrayOfString;
     procedure SetURLPattern(AValue: String);
   protected
     procedure DoHandleRequest(ARequest: TRequest; AResponse: TResponse); virtual;
   public
     destructor Destroy; override;
     procedure HandleRequest(ARequest: TRequest; AResponse: TResponse);
+    procedure ExtractParams(const ASegs: TArrayOfString; AParams: TStrings);
     function Matches(const APattern: String; AMethod: TRouteMethod; Options: TRouteOptions): Boolean;
     function MatchPattern(const Path: String; L: TStrings; Options: TRouteOptions): Boolean;
     function MatchMethod(const AMethod: TRouteMethod): Boolean;
+    property PatternSegments: TArrayOfString read FPatternSegments;
   published
     property Default: Boolean read FDefault write FDefault;
     property URLPattern: String read FURLPattern write SetURLPattern;
@@ -194,6 +198,7 @@ type
 
 function RouteMethodToString(R: TRouteMethod): String;
 function HTTPRouter: THTTPRouter;
+function SplitPathSegments(const APath: string): TArrayOfString;
 
 const
   RouteMethodNames: array[TRouteMethod] of String = (
@@ -210,7 +215,6 @@ resourcestring
 
 type
   TSegmentKind = (skStatic, skParam, skWildcard);
-  TArrayOfString = array of string;
 
   { TRadixNode }
 
@@ -223,6 +227,7 @@ type
     FParamChild: TRadixNode;    // Prioridade 2 (:param)
     FWildcardChild: TRadixNode; // Prioridade 3 (*wildcard)
     FRoutes: array[TRouteMethod] of THTTPRoute;
+    FParamNames: array[TRouteMethod] of string; // Nome de parametro especifico por metodo
     FHasRoutes: Boolean;
     procedure EnsureStaticCapacity;
   public
@@ -233,6 +238,9 @@ type
     function GetOrCreateStaticChild(const ASeg: string; ACaseSensitive: Boolean): TRadixNode;
     function GetOrCreateParamChild(const AParamName: string): TRadixNode;
     function GetOrCreateWildcardChild(const AWildcardName: string): TRadixNode;
+
+    procedure SetParamName(AMethod: TRouteMethod; const AParamName: string);
+    function GetParamName(AMethod: TRouteMethod): string;
 
     procedure SetRoute(AMethod: TRouteMethod; ARoute: THTTPRoute);
     function FindRouteForMethod(AMethod: TRouteMethod; out AMethodMismatch: Boolean): THTTPRoute;
@@ -259,7 +267,12 @@ begin
   FWildcardChild := nil;
   FHasRoutes := False;
   for M := Low(TRouteMethod) to High(TRouteMethod) do
+  begin
     FRoutes[M] := nil;
+    FParamNames[M] := '';
+  end;
+  if AKind in [skParam, skWildcard] then
+    FParamNames[rmAll] := ASegment;
 end;
 
 destructor TRadixNode.Destroy;
@@ -320,19 +333,42 @@ end;
 function TRadixNode.GetOrCreateParamChild(const AParamName: string): TRadixNode;
 begin
   if FParamChild = nil then
-    FParamChild := TRadixNode.Create(AParamName, skParam)
-  else
-    FParamChild.FSegment := AParamName;
+    FParamChild := TRadixNode.Create(AParamName, skParam);
   Result := FParamChild;
 end;
 
 function TRadixNode.GetOrCreateWildcardChild(const AWildcardName: string): TRadixNode;
 begin
   if FWildcardChild = nil then
-    FWildcardChild := TRadixNode.Create(AWildcardName, skWildcard)
-  else
-    FWildcardChild.FSegment := AWildcardName;
+    FWildcardChild := TRadixNode.Create(AWildcardName, skWildcard);
   Result := FWildcardChild;
+end;
+
+procedure TRadixNode.SetParamName(AMethod: TRouteMethod; const AParamName: string);
+var
+  M: TRouteMethod;
+begin
+  if AParamName = '' then Exit;
+  if AMethod = rmAll then
+  begin
+    for M := Low(TRouteMethod) to High(TRouteMethod) do
+      if FParamNames[M] = '' then
+        FParamNames[M] := AParamName;
+    FParamNames[rmAll] := AParamName;
+  end
+  else
+    FParamNames[AMethod] := AParamName;
+end;
+
+function TRadixNode.GetParamName(AMethod: TRouteMethod): string;
+begin
+  Result := '';
+  if (AMethod in [Low(TRouteMethod)..High(TRouteMethod)]) and (FParamNames[AMethod] <> '') then
+    Result := FParamNames[AMethod]
+  else if FParamNames[rmAll] <> '' then
+    Result := FParamNames[rmAll]
+  else
+    Result := FSegment;
 end;
 
 procedure TRadixNode.SetRoute(AMethod: TRouteMethod; ARoute: THTTPRoute);
@@ -448,7 +484,7 @@ begin
       if Result <> nil then
       begin
         if AParams <> nil then
-          AParams.Values[ANode.WildcardChild.Segment] := '';
+          AParams.Values[ANode.WildcardChild.GetParamName(AMethod)] := '';
         Exit;
       end;
     end;
@@ -477,7 +513,7 @@ begin
     if AParams <> nil then
     begin
       ParamStartCount := AParams.Count;
-      AParams.Values[ANode.ParamChild.Segment] := ASegs[ASegIdx];
+      AParams.Values[ANode.ParamChild.GetParamName(AMethod)] := ASegs[ASegIdx];
     end;
 
     SubMismatch := False;
@@ -514,7 +550,7 @@ begin
           else
             RestPath := ASegs[I];
         end;
-        AParams.Values[ANode.WildcardChild.Segment] := RestPath;
+        AParams.Values[ANode.WildcardChild.GetParamName(AMethod)] := RestPath;
       end;
       Exit;
     end;
@@ -615,13 +651,49 @@ begin
     Delete(V, 1, 1);
   if FURLPattern = V then Exit;
   FURLPattern := V;
+  FPatternSegments := SplitPathSegments(FURLPattern);
   if (Collection <> nil) and (Collection.Owner is THTTPRouter) then
     THTTPRouter(Collection.Owner).RebuildRadixTree;
 end;
 
 destructor THTTPRoute.Destroy;
 begin
+  SetLength(FPatternSegments, 0);
   inherited Destroy;
+end;
+
+procedure THTTPRoute.ExtractParams(const ASegs: TArrayOfString; AParams: TStrings);
+var
+  I, J: Integer;
+  Seg, ParamName, RestPath: string;
+begin
+  if AParams = nil then Exit;
+  for I := 0 to High(FPatternSegments) do
+  begin
+    Seg := FPatternSegments[I];
+    if (Length(Seg) > 0) and (Seg[1] = ':') then
+    begin
+      ParamName := Copy(Seg, 2, MaxInt);
+      if I <= High(ASegs) then
+        AParams.Values[ParamName] := ASegs[I]
+      else
+        AParams.Values[ParamName] := '';
+    end
+    else if (Length(Seg) > 0) and (Seg[1] = '*') then
+    begin
+      ParamName := Copy(Seg, 2, MaxInt);
+      RestPath := '';
+      for J := I to High(ASegs) do
+      begin
+        if J > I then
+          RestPath := RestPath + '/' + ASegs[J]
+        else
+          RestPath := ASegs[J];
+      end;
+      AParams.Values[ParamName] := RestPath;
+      Break;
+    end;
+  end;
 end;
 
 procedure THTTPRoute.DoHandleRequest(ARequest: TRequest; AResponse: TResponse);
@@ -843,7 +915,10 @@ begin
     Exit;
   end;
 
-  Segs := SplitPathSegments(ARoute.URLPattern);
+  if Length(ARoute.PatternSegments) > 0 then
+    Segs := ARoute.PatternSegments
+  else
+    Segs := SplitPathSegments(ARoute.URLPattern);
   CurrNode := TRadixNode(FRootNode);
 
   for I := 0 to High(Segs) do
@@ -853,12 +928,14 @@ begin
     begin
       ParamName := Copy(Seg, 2, MaxInt);
       CurrNode := CurrNode.GetOrCreateWildcardChild(ParamName);
+      CurrNode.SetParamName(ARoute.Method, ParamName);
       Break; // Wildcard is always terminal
     end
     else if (Length(Seg) > 0) and (Seg[1] = ':') then
     begin
       ParamName := Copy(Seg, 2, MaxInt);
       CurrNode := CurrNode.GetOrCreateParamChild(ParamName);
+      CurrNode.SetParamName(ARoute.Method, ParamName);
     end
     else
     begin
@@ -1081,7 +1158,15 @@ begin
       Result := FDefaultRoutes[rmAll];
   end;
 
-  if (Result = nil) and (Params <> nil) then
+  if Result <> nil then
+  begin
+    if Params <> nil then
+    begin
+      Params.Clear;
+      Result.ExtractParams(Segs, Params);
+    end;
+  end
+  else if Params <> nil then
     Params.Clear;
 end;
 
