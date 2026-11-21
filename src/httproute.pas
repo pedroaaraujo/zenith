@@ -1134,6 +1134,21 @@ begin
   end;
 end;
 
+procedure ClearCustomHeaderCaseInsensitive(AHeaders: TStrings; const AName: string);
+var
+  Idx: Integer;
+  N, V: string;
+begin
+  if not Assigned(AHeaders) then
+    Exit;
+  for Idx := AHeaders.Count - 1 downto 0 do
+  begin
+    AHeaders.GetNameValue(Idx, N, V);
+    if SameText(Trim(N), AName) then
+      AHeaders.Delete(Idx);
+  end;
+end;
+
 procedure THTTPRouter.RouteRequest(ARequest: TRequest; AResponse: TResponse);
 var
   AMethod: TRouteMethod;
@@ -1154,7 +1169,7 @@ begin
     try
       ARequest.Content := GZipDecompress(ARequest.Content);
       ARequest.ContentEncoding := '';
-      ARequest.SetCustomHeader('Content-Encoding', '');
+      ClearCustomHeaderCaseInsensitive(ARequest.CustomHeaders, 'Content-Encoding');
     except
       on E: Exception do
       begin
@@ -1220,7 +1235,8 @@ begin
     AE := LowerCase(Trim(ARequest.AcceptEncoding));
     if AE = '' then
       AE := LowerCase(Trim(ARequest.GetCustomHeader('Accept-Encoding')));
-    if (Pos('gzip', AE) > 0) and (not AResponse.ContentSent) and (Length(AResponse.Content) > 0) then
+    if (Pos('gzip', AE) > 0) and (not AResponse.ContentSent) and (Length(AResponse.Content) > 0) and
+       (Pos('gzip', LowerCase(Trim(AResponse.ContentEncoding))) = 0) then
     begin
       try
         Compressed := GZipCompress(AResponse.Content);
@@ -1234,7 +1250,7 @@ begin
         AResponse.FreeContentStream := True;
         AResponse.ContentStream := CompStream;
         AResponse.ContentLength := CompStream.Size;
-        AResponse.SetCustomHeader('Content-Encoding', 'gzip');
+        ClearCustomHeaderCaseInsensitive(AResponse.CustomHeaders, 'Content-Encoding');
         AResponse.ContentEncoding := 'gzip';
       except
       end;
@@ -1266,7 +1282,8 @@ begin
   if AE = '' then
     AE := LowerCase(Trim(ARequest.GetCustomHeader('Accept-Encoding')));
 
-  if (Pos('gzip', AE) > 0) and (not AResponse.ContentSent) then
+  if (Pos('gzip', AE) > 0) and (not AResponse.ContentSent) and
+     (Pos('gzip', LowerCase(Trim(AResponse.ContentEncoding))) = 0) then
   begin
     RawContent := '';
     if Assigned(AResponse.ContentStream) then
@@ -1296,7 +1313,7 @@ begin
         AResponse.FreeContentStream := True;
         AResponse.ContentStream := CompStream;
         AResponse.ContentLength := CompStream.Size;
-        AResponse.SetCustomHeader('Content-Encoding', 'gzip');
+        ClearCustomHeaderCaseInsensitive(AResponse.CustomHeaders, 'Content-Encoding');
         AResponse.ContentEncoding := 'gzip';
       except
         // If compression fails, keep original payload
