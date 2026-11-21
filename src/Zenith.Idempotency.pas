@@ -933,6 +933,8 @@ begin
       AResponse.ETag := AHeaders[I].Value
     else if SameText(AHeaders[I].Name, 'Cache-Control') then
       AResponse.CacheControl := AHeaders[I].Value
+    else if SameText(AHeaders[I].Name, 'Content-Encoding') then
+      AResponse.ContentEncoding := AHeaders[I].Value
     else
       AResponse.SetCustomHeader(AHeaders[I].Name, AHeaders[I].Value);
   end;

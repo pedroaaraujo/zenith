@@ -1221,16 +1221,29 @@ end;
 
 procedure ClearCustomHeaderCaseInsensitive(AHeaders: TStrings; const AName: string);
 var
-  Idx: Integer;
-  N, V: string;
+  Idx, SepPos: Integer;
+  Line, N, V: string;
 begin
   if not Assigned(AHeaders) then
     Exit;
   for Idx := AHeaders.Count - 1 downto 0 do
   begin
+    Line := Trim(AHeaders[Idx]);
     AHeaders.GetNameValue(Idx, N, V);
     if SameText(Trim(N), AName) then
+    begin
       AHeaders.Delete(Idx);
+      Continue;
+    end;
+    SepPos := Pos(':', Line);
+    if SepPos = 0 then
+      SepPos := Pos('=', Line);
+    if SepPos > 0 then
+    begin
+      N := Trim(Copy(Line, 1, SepPos - 1));
+      if SameText(N, AName) then
+        AHeaders.Delete(Idx);
+    end;
   end;
 end;
 
@@ -1404,6 +1417,16 @@ begin
         // If compression fails, keep original payload
       end;
     end;
+  end;
+
+  // Final safeguard: ensure Content-Encoding is never present in CustomHeaders when native ContentEncoding is set,
+  // or migrate Content-Encoding from CustomHeaders to native ContentEncoding to prevent duplicate HTTP headers.
+  if AResponse.ContentEncoding <> '' then
+    ClearCustomHeaderCaseInsensitive(AResponse.CustomHeaders, 'Content-Encoding')
+  else if AResponse.GetCustomHeader('Content-Encoding') <> '' then
+  begin
+    AResponse.ContentEncoding := AResponse.GetCustomHeader('Content-Encoding');
+    ClearCustomHeaderCaseInsensitive(AResponse.CustomHeaders, 'Content-Encoding');
   end;
 end;
 
