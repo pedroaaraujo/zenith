@@ -34,6 +34,7 @@ type
     procedure TestExtractLastEventID;
     procedure TestStreamWriteAndClose;
     procedure TestBrokerTopicRoutingAndWildcard;
+    procedure TestBrokerMultiTopicSubscriptionAndScopedDelivery;
     procedure TestBrokerReplaySinceLastEventID;
     procedure TestBrokerConcurrentMultiSubscriber;
     procedure TestLiveServerHeadersEventsHeartbeatAndResume;
@@ -519,6 +520,52 @@ begin
     S1.Free;
     S2.Free;
     S3.Free;
+    Broker.Free;
+  end;
+end;
+
+procedure TTestZenithSSE.TestBrokerMultiTopicSubscriptionAndScopedDelivery;
+var
+  Broker: TZSSEBroker;
+  SUser1, SUser2: TMemoryStream;
+  CUser1, CUser2: TZSSEConnection;
+  Delivered: Integer;
+begin
+  Broker := TZSSEBroker.Create(32);
+  SUser1 := TMemoryStream.Create;
+  SUser2 := TMemoryStream.Create;
+  // User 1 in Org 9, User 2 in Org 9
+  CUser1 := TZSSEConnection.CreateFromStream(SUser1, '', 'cli-user1');
+  CUser2 := TZSSEConnection.CreateFromStream(SUser2, '', 'cli-user2');
+  try
+    Broker.Subscribe(CUser1, ['user:9:101', 'org:9']);
+    Broker.Subscribe(CUser2, ['user:9:102', 'org:9']);
+
+    AssertEquals('2 active connections', 2, Broker.ConnectionCount);
+    AssertTrue('User 1 has user topic', CUser1.HasTopic('user:9:101'));
+    AssertTrue('User 1 has org topic', CUser1.HasTopic('org:9'));
+    AssertFalse('User 1 does not have user 2 topic', CUser1.HasTopic('user:9:102'));
+
+    // 1. Publish to User 1 only
+    Delivered := Broker.Publish('user:9:101', '{"msg":"para usuario 101"}', 'notificacao.criada', '1');
+    AssertEquals('Delivered to 1 user', 1, Delivered);
+    AssertTrue('User 1 received data', SUser1.Size > 0);
+    AssertEquals('User 2 received nothing', 0, SUser2.Size);
+
+    // 2. Publish to Org 9 (both User 1 and User 2)
+    SUser1.Size := 0;
+    SUser2.Size := 0;
+    Delivered := Broker.Publish('org:9', '{"msg":"alerta global org 9"}', 'notificacao.alerta', '2');
+    AssertEquals('Delivered to both org subscribers', 2, Delivered);
+    AssertTrue('User 1 received org broadcast', SUser1.Size > 0);
+    AssertTrue('User 2 received org broadcast', SUser2.Size > 0);
+  finally
+    Broker.Unsubscribe(CUser1);
+    Broker.Unsubscribe(CUser2);
+    CUser1.Free;
+    CUser2.Free;
+    SUser1.Free;
+    SUser2.Free;
     Broker.Free;
   end;
 end;

@@ -175,7 +175,8 @@ type
 
     procedure Subscribe(AConn: TZSSEConnection; const ATopic: string = '*'); overload;
     procedure Subscribe(AConn: TZSSEConnection; const ATopics: array of string); overload;
-    function TrySubscribe(AConn: TZSSEConnection; const ATopic: string = '*'): Boolean;
+    function TrySubscribe(AConn: TZSSEConnection; const ATopic: string = '*'): Boolean; overload;
+    function TrySubscribe(AConn: TZSSEConnection; const ATopics: array of string): Boolean; overload;
     procedure Unsubscribe(AConn: TZSSEConnection);
     procedure UnsubscribeTopic(AConn: TZSSEConnection; const ATopic: string);
 
@@ -194,7 +195,12 @@ type
       const ATopic: string = '*';
       AHeartbeatIntervalMs: Integer = SSE_DEFAULT_HEARTBEAT_MS;
       AReplayMissed: Boolean = True;
-      APollIntervalMs: Integer = SSE_DEFAULT_POLL_MS);
+      APollIntervalMs: Integer = SSE_DEFAULT_POLL_MS); overload;
+    procedure ServeConnection(ARequest: TRequest; AResponse: TResponse;
+      const ATopics: array of string;
+      AHeartbeatIntervalMs: Integer = SSE_DEFAULT_HEARTBEAT_MS;
+      AReplayMissed: Boolean = True;
+      APollIntervalMs: Integer = SSE_DEFAULT_POLL_MS); overload;
 
     function ConnectionCount: Integer;
     function TopicSubscriberCount(const ATopic: string): Integer;
@@ -1051,15 +1057,11 @@ begin
   end;
 end;
 
-procedure TZSSEBroker.Subscribe(AConn: TZSSEConnection; const ATopic: string);
-begin
-  TrySubscribe(AConn, ATopic);
-end;
-
-procedure TZSSEBroker.Subscribe(AConn: TZSSEConnection; const ATopics: array of string);
+function TZSSEBroker.TrySubscribe(AConn: TZSSEConnection; const ATopics: array of string): Boolean;
 var
   I: Integer;
 begin
+  Result := False;
   if not Assigned(AConn) then
     Exit;
 
@@ -1071,13 +1073,27 @@ begin
     if FShuttingDown then
     begin
       AConn.Close;
-      Exit;
+      Exit(False);
     end;
-    if FConnections.IndexOf(AConn) < 0 then
-      FConnections.Add(AConn);
+    if FConnections.IndexOf(AConn) >= 0 then
+      Exit(True);
+    if (FMaxConnections > 0) and (FConnections.Count >= FMaxConnections) then
+      Exit(False);
+    FConnections.Add(AConn);
+    Result := True;
   finally
     FLock.Leave;
   end;
+end;
+
+procedure TZSSEBroker.Subscribe(AConn: TZSSEConnection; const ATopic: string);
+begin
+  TrySubscribe(AConn, ATopic);
+end;
+
+procedure TZSSEBroker.Subscribe(AConn: TZSSEConnection; const ATopics: array of string);
+begin
+  TrySubscribe(AConn, ATopics);
 end;
 
 procedure TZSSEBroker.Unsubscribe(AConn: TZSSEConnection);
@@ -1298,11 +1314,21 @@ begin
     begin
       Idx := (FHistoryHead + I) mod FReplayBufferSize;
       Ev := FHistory[Idx];
-      if (FilterTopic = '') or (FilterTopic = '*') or
-         (Ev.Topic = '*') or SameText(Ev.Topic, FilterTopic) then
+      if (FilterTopic <> '') and (FilterTopic <> '*') then
       begin
-        Snapshot[SnapCount] := Ev;
-        Inc(SnapCount);
+        if (Ev.Topic = '*') or SameText(Ev.Topic, FilterTopic) then
+        begin
+          Snapshot[SnapCount] := Ev;
+          Inc(SnapCount);
+        end;
+      end
+      else
+      begin
+        if (Ev.Topic = '*') or (FilterTopic = '*') or AConn.HasTopic(Ev.Topic) then
+        begin
+          Snapshot[SnapCount] := Ev;
+          Inc(SnapCount);
+        end;
       end;
     end;
   finally
@@ -1364,6 +1390,13 @@ end;
 procedure TZSSEBroker.ServeConnection(ARequest: TRequest; AResponse: TResponse;
   const ATopic: string; AHeartbeatIntervalMs: Integer; AReplayMissed: Boolean;
   APollIntervalMs: Integer);
+begin
+  ServeConnection(ARequest, AResponse, [ATopic], AHeartbeatIntervalMs, AReplayMissed, APollIntervalMs);
+end;
+
+procedure TZSSEBroker.ServeConnection(ARequest: TRequest; AResponse: TResponse;
+  const ATopics: array of string; AHeartbeatIntervalMs: Integer; AReplayMissed: Boolean;
+  APollIntervalMs: Integer);
 var
   Conn: TZSSEConnection;
   AtCapacity: Boolean;
@@ -1399,14 +1432,19 @@ begin
 
   Conn := TZSSEConnection.Create(ARequest, AResponse);
   try
-    if not TrySubscribe(Conn, ATopic) then
+    if not TrySubscribe(Conn, ATopics) then
     begin
       Conn.Close;
       Exit;
     end;
     try
       if AReplayMissed and (Conn.LastEventID <> '') then
-        ReplaySince(Conn, ATopic, Conn.LastEventID);
+      begin
+        if Length(ATopics) = 1 then
+          ReplaySince(Conn, ATopics[0], Conn.LastEventID)
+        else
+          ReplaySince(Conn, '', Conn.LastEventID);
+      end;
       Conn.WaitLoop(AHeartbeatIntervalMs, APollIntervalMs);
     finally
       Unsubscribe(Conn);
