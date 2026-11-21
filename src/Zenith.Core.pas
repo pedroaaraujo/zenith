@@ -6,7 +6,7 @@ interface
 
 uses
   Classes, SysUtils, custhttpapp, HTTPDefs, DeltaValidator, fpjson,
-  Zenith.Exceptions, Zenith.Log, Zenith.Consts, Zenith.Types, Zenith.Env, Zenith.Messages;
+  Zenith.Exceptions, Zenith.MergePatch, Zenith.Log, Zenith.Consts, Zenith.Types, Zenith.Env, Zenith.Messages;
 
 procedure ConfigureApplication(App: TCustomHTTPApplication);
 
@@ -19,6 +19,7 @@ var
   CallStack: string;
   I: Integer;
   QueryStart: SizeInt;
+  UseZenithProblemJson: Boolean;
 begin
   AResp.ContentType := 'application/problem+json; charset=utf-8';
   AResp.Contents.Clear;
@@ -26,6 +27,7 @@ begin
   Title := TitleInternalServerError;
   Detail := DetailInternalServerError;
   AResp.Code := StatusInternalServerError;
+  UseZenithProblemJson := False;
 
   CallStack := '';
 
@@ -107,11 +109,11 @@ begin
     Title := TitleUnprocessableEntity;
     Detail := E.Message;
   end
-  else if E is HTTPException then
+  else if E is EUnsupportedMediaType then
   begin
-    AResp.Code := StatusBadRequest;
-    Error := 'bad-request';
-    Title := TitleBadRequest;
+    AResp.Code := StatusUnsupportedMediaType;
+    Error := 'unsupported-media-type';
+    Title := 'Unsupported Media Type';
     Detail := E.Message;
   end
   else if E is EServerError then
@@ -139,9 +141,24 @@ begin
       Detail := E.Message + sLineBreak + '--- Call Stack ---' + sLineBreak + CallStack;
       ZenithLogger.Error(E.ClassName + sLineBreak + Detail);
     end;
+  end
+  else if E is HTTPException then
+  begin
+    AResp.Code := StatusBadRequest;
+    Error := 'bad-request';
+    Title := TitleBadRequest;
+    Detail := E.Message;
+  end
+  else if E is EZenithException then
+  begin
+    AResp.Code := EZenithException(E).StatusCode;
+    AResp.ContentType := 'application/problem+json; charset=utf-8';
+    AResp.Content := EZenithException(E).ToProblemJson;
+    UseZenithProblemJson := True;
   end;
 
-  AResp.Content := TJsonError.ToJson(Error, Title, AResp.Code, Detail);
+  if not UseZenithProblemJson then
+    AResp.Content := TJsonError.ToJson(Error, Title, AResp.Code, Detail);
 
   RequestPath := AReq.URL;
   QueryStart := Pos('?', RequestPath);

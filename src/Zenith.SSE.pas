@@ -36,6 +36,7 @@ const
   SSE_DEFAULT_HEARTBEAT_MS = 15000;
   SSE_DEFAULT_POLL_MS = 250;
   SSE_DEFAULT_REPLAY_BUFFER_SIZE = 100;
+  SSE_DEFAULT_MAX_CONNECTIONS = 64;
 
 type
   EZSSEError = class(Exception);
@@ -154,6 +155,7 @@ type
     FHistoryHead: Integer;
     FHistoryCount: Integer;
     FReplayBufferSize: Integer;
+    FMaxConnections: Integer;
     FShuttingDown: Boolean;
     FTotalPublished: Int64;
     FTotalDelivered: Int64;
@@ -164,12 +166,16 @@ type
     function GetTotalPublished: Int64;
     function GetTotalDelivered: Int64;
     function GetTotalDropped: Int64;
+    function GetMaxConnections: Integer;
+    procedure SetMaxConnections(AValue: Integer);
   public
-    constructor Create(AReplayBufferSize: Integer = SSE_DEFAULT_REPLAY_BUFFER_SIZE);
+    constructor Create(AReplayBufferSize: Integer = SSE_DEFAULT_REPLAY_BUFFER_SIZE;
+      AMaxConnections: Integer = SSE_DEFAULT_MAX_CONNECTIONS);
     destructor Destroy; override;
 
     procedure Subscribe(AConn: TZSSEConnection; const ATopic: string = '*'); overload;
     procedure Subscribe(AConn: TZSSEConnection; const ATopics: array of string); overload;
+    function TrySubscribe(AConn: TZSSEConnection; const ATopic: string = '*'): Boolean;
     procedure Unsubscribe(AConn: TZSSEConnection);
     procedure UnsubscribeTopic(AConn: TZSSEConnection; const ATopic: string);
 
@@ -194,6 +200,7 @@ type
     function TopicSubscriberCount(const ATopic: string): Integer;
 
     property ReplayBufferSize: Integer read FReplayBufferSize;
+    property MaxConnections: Integer read GetMaxConnections write SetMaxConnections;
     property TotalPublished: Int64 read GetTotalPublished;
     property TotalDelivered: Int64 read GetTotalDelivered;
     property TotalDropped: Int64 read GetTotalDropped;
@@ -928,7 +935,7 @@ end;
 
 { TZSSEBroker }
 
-constructor TZSSEBroker.Create(AReplayBufferSize: Integer);
+constructor TZSSEBroker.Create(AReplayBufferSize: Integer; AMaxConnections: Integer);
 begin
   inherited Create;
   FLock := TCriticalSection.Create;
@@ -936,6 +943,9 @@ begin
   if AReplayBufferSize < 0 then
     AReplayBufferSize := 0;
   FReplayBufferSize := AReplayBufferSize;
+  if AMaxConnections < 0 then
+    AMaxConnections := 0;
+  FMaxConnections := AMaxConnections;
   if FReplayBufferSize > 0 then
     SetLength(FHistory, FReplayBufferSize)
   else
@@ -993,8 +1003,31 @@ begin
   Result := InterLockedExchangeAdd64(FTotalDropped, 0);
 end;
 
-procedure TZSSEBroker.Subscribe(AConn: TZSSEConnection; const ATopic: string);
+function TZSSEBroker.GetMaxConnections: Integer;
 begin
+  FLock.Enter;
+  try
+    Result := FMaxConnections;
+  finally
+    FLock.Leave;
+  end;
+end;
+
+procedure TZSSEBroker.SetMaxConnections(AValue: Integer);
+begin
+  if AValue < 0 then
+    AValue := 0;
+  FLock.Enter;
+  try
+    FMaxConnections := AValue;
+  finally
+    FLock.Leave;
+  end;
+end;
+
+function TZSSEBroker.TrySubscribe(AConn: TZSSEConnection; const ATopic: string): Boolean;
+begin
+  Result := False;
   if not Assigned(AConn) then
     Exit;
 
@@ -1005,13 +1038,22 @@ begin
     if FShuttingDown then
     begin
       AConn.Close;
-      Exit;
+      Exit(False);
     end;
-    if FConnections.IndexOf(AConn) < 0 then
-      FConnections.Add(AConn);
+    if FConnections.IndexOf(AConn) >= 0 then
+      Exit(True);
+    if (FMaxConnections > 0) and (FConnections.Count >= FMaxConnections) then
+      Exit(False);
+    FConnections.Add(AConn);
+    Result := True;
   finally
     FLock.Leave;
   end;
+end;
+
+procedure TZSSEBroker.Subscribe(AConn: TZSSEConnection; const ATopic: string);
+begin
+  TrySubscribe(AConn, ATopic);
 end;
 
 procedure TZSSEBroker.Subscribe(AConn: TZSSEConnection; const ATopics: array of string);
@@ -1324,10 +1366,44 @@ procedure TZSSEBroker.ServeConnection(ARequest: TRequest; AResponse: TResponse;
   APollIntervalMs: Integer);
 var
   Conn: TZSSEConnection;
+  AtCapacity: Boolean;
 begin
+  PruneDisconnected;
+
+  FLock.Enter;
+  try
+    AtCapacity := FShuttingDown or
+      ((FMaxConnections > 0) and (FConnections.Count >= FMaxConnections));
+  finally
+    FLock.Leave;
+  end;
+
+  if AtCapacity then
+  begin
+    if Assigned(AResponse) then
+    begin
+      AResponse.Code := 503;
+      AResponse.CodeText := 'Service Unavailable';
+      AResponse.ContentType := 'application/problem+json; charset=utf-8';
+      AResponse.SetCustomHeader('Retry-After', '5');
+      AResponse.Content :=
+        '{"type":"https://tools.ietf.org/html/rfc9457",' +
+        '"title":"Service Unavailable",' +
+        '"status":503,' +
+        '"detail":"Maximum concurrent SSE connections reached. Please retry after 5 seconds."}';
+      if not AResponse.HeadersSent then
+        AResponse.SendContent;
+    end;
+    Exit;
+  end;
+
   Conn := TZSSEConnection.Create(ARequest, AResponse);
   try
-    Subscribe(Conn, ATopic);
+    if not TrySubscribe(Conn, ATopic) then
+    begin
+      Conn.Close;
+      Exit;
+    end;
     try
       if AReplayMissed and (Conn.LastEventID <> '') then
         ReplaySince(Conn, ATopic, Conn.LastEventID);

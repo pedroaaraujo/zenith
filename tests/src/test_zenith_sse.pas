@@ -38,6 +38,7 @@ type
     procedure TestBrokerConcurrentMultiSubscriber;
     procedure TestLiveServerHeadersEventsHeartbeatAndResume;
     procedure TestLiveServerAbruptDisconnectZeroThreadLeak;
+    procedure TestBrokerMaxConnectionsLimitReturns503;
     procedure TestBenchmarkEventsPerSecond;
   end;
 
@@ -754,6 +755,71 @@ begin
 
     AssertTrue('ThreadPool processed all 8 SSE connections cleanly',
       Srv.Server.ThreadPool.TotalProcessed >= CLIENT_COUNT);
+
+    Srv.StopServer;
+    Srv.WaitFor;
+  finally
+    Srv.Free;
+    Broker.Free;
+  end;
+end;
+
+procedure TTestZenithSSE.TestBrokerMaxConnectionsLimitReturns503;
+var
+  Broker: TZSSEBroker;
+  Srv: TSSEServerThread;
+  Sock1, Sock2, Sock3: TInetSocket;
+  ReqStr, Resp3: RawByteString;
+  Port: Word;
+  WaitStep: Integer;
+begin
+  Port := TEST_SSE_PORT_BASE + 2;
+  Broker := TZSSEBroker.Create(16, 2); // MaxConnections = 2
+  Srv := TSSEServerThread.Create(Port, Broker, 5000, 25, 4);
+  try
+    AssertEquals('Initial MaxConnections', 2, Broker.MaxConnections);
+    Srv.Start;
+    AssertTrue('Server ready', Srv.WaitReady(3000));
+    AssertEquals('No server error', '', Srv.StartError);
+
+    ReqStr :=
+      'GET /events/metrics HTTP/1.1'#13#10 +
+      'Host: 127.0.0.1'#13#10 +
+      'Accept: text/event-stream'#13#10#13#10;
+
+    Sock1 := TInetSocket.Create('127.0.0.1', Port, 2000);
+    Sock2 := TInetSocket.Create('127.0.0.1', Port, 2000);
+    try
+      Sock1.WriteBuffer(ReqStr[1], Length(ReqStr));
+      Sock2.WriteBuffer(ReqStr[1], Length(ReqStr));
+
+      for WaitStep := 1 to 40 do
+      begin
+        if Broker.ConnectionCount = 2 then
+          Break;
+        Sleep(20);
+      end;
+      AssertEquals('2 active connections at capacity', 2, Broker.ConnectionCount);
+
+      // 3rd connection exceeds MaxConnections -> must receive immediate HTTP 503 + Retry-After: 5
+      Sock3 := TInetSocket.Create('127.0.0.1', Port, 2000);
+      try
+        Sock3.WriteBuffer(ReqStr[1], Length(ReqStr));
+        Resp3 := ReadAvailableFromSocket(Sock3, 500, 'Retry-After');
+        AssertTrue('Must return HTTP 503 Service Unavailable',
+          Pos('503 Service Unavailable', string(Resp3)) > 0);
+        AssertTrue('Must include Retry-After: 5 header',
+          Pos('Retry-After: 5', string(Resp3)) > 0);
+        AssertTrue('Must return application/problem+json RFC 9457 body',
+          Pos('application/problem+json', string(Resp3)) > 0);
+        AssertEquals('Active connection count remains 2', 2, Broker.ConnectionCount);
+      finally
+        Sock3.Free;
+      end;
+    finally
+      Sock2.Free;
+      Sock1.Free;
+    end;
 
     Srv.StopServer;
     Srv.WaitFor;

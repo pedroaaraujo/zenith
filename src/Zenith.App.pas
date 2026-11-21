@@ -91,8 +91,9 @@ begin
   begin
     CorsOrigin := GetEnvVariable('ZENITH_CORS_ORIGIN', '*').Trim;
     Router.AddCustomHeader('Access-Control-Allow-Origin', CorsOrigin);
-    Router.AddCustomHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS, PUT, DELETE');
-    Router.AddCustomHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+    Router.AddCustomHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS, PUT, PATCH, DELETE');
+    Router.AddCustomHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, If-Match, If-None-Match, If-Modified-Since, If-Unmodified-Since, Idempotency-Key, Last-Event-ID');
+    Router.AddCustomHeader('Access-Control-Expose-Headers', 'ETag, Idempotent-Replayed, Accept-Patch, Retry-After, Content-Encoding');
     Router.AddCustomHeader('Vary', 'Origin');
     if not CorsOrigin.Equals('*') and
        GetEnvVariable('ZENITH_CORS_ALLOW_CREDENTIALS', 'N').Equals('Y') then

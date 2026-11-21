@@ -196,16 +196,26 @@ type
     class function ValidateAndNormalizeKey(const ARawKey: string;
       out ANormalizedKey, AErrorDetail: string): Boolean;
 
+    class function ExtractRequestScope(ARequest: TRequest; const AScope: string = ''): string;
+    class function BuildScopedStoreKey(const ANormalizedKey, AScopeContext: string): string;
+
     class function ComputeRequestHash(ARequest: TRequest): string; overload;
+    class function ComputeRequestHash(ARequest: TRequest; const AScope: string): string; overload;
     class function ComputeRequestHash(const AMethod, APath: string;
-      const AContent: RawByteString): string; overload;
+      const AContent: RawByteString; const AScope: string = ''): string; overload;
 
     class function ProcessBefore(ARequest: TRequest; AResponse: TResponse;
-      AStore: IZenithIdempotencyStore = nil): Boolean;
+      AStore: IZenithIdempotencyStore = nil): Boolean; overload;
+    class function ProcessBefore(ARequest: TRequest; AResponse: TResponse;
+      const AScope: string; AStore: IZenithIdempotencyStore = nil): Boolean; overload;
     class procedure ProcessAfter(ARequest: TRequest; AResponse: TResponse;
-      AStore: IZenithIdempotencyStore = nil);
+      AStore: IZenithIdempotencyStore = nil); overload;
+    class procedure ProcessAfter(ARequest: TRequest; AResponse: TResponse;
+      const AScope: string; AStore: IZenithIdempotencyStore = nil); overload;
     class procedure ReleaseOnError(ARequest: TRequest;
-      AStore: IZenithIdempotencyStore = nil);
+      AStore: IZenithIdempotencyStore = nil); overload;
+    class procedure ReleaseOnError(ARequest: TRequest;
+      const AScope: string; AStore: IZenithIdempotencyStore = nil); overload;
 
     class property DefaultStore: IZenithIdempotencyStore read GetDefaultStore write SetDefaultStore;
     class property Enabled: Boolean read FEnabled write FEnabled;
@@ -1036,29 +1046,123 @@ begin
   Result := True;
 end;
 
+class function TZenithIdempotency.ExtractRequestScope(ARequest: TRequest;
+  const AScope: string): string;
+var
+  I, SepPos: Integer;
+  Line, HName, HVal: string;
+  AuthVal, TenantVal, ApiKeyVal: string;
+begin
+  Result := Trim(AScope);
+  if Result <> '' then
+    Exit;
+
+  if not Assigned(ARequest) then
+    Exit('');
+
+  AuthVal := Trim(ARequest.Authorization);
+  TenantVal := '';
+  ApiKeyVal := '';
+
+  if Assigned(ARequest.CustomHeaders) then
+  begin
+    for I := 0 to ARequest.CustomHeaders.Count - 1 do
+    begin
+      Line := ARequest.CustomHeaders[I];
+      SepPos := Pos('=', Line);
+      if SepPos = 0 then
+        SepPos := Pos(':', Line);
+      if SepPos > 1 then
+      begin
+        HName := Trim(Copy(Line, 1, SepPos - 1));
+        HVal := Trim(Copy(Line, SepPos + 1, MaxInt));
+        if (AuthVal = '') and SameText(HName, 'Authorization') then
+          AuthVal := HVal
+        else if (TenantVal = '') and (SameText(HName, 'X-Tenant-Id') or SameText(HName, 'X-Tenant-ID')) then
+          TenantVal := HVal
+        else if (ApiKeyVal = '') and (SameText(HName, 'X-API-Key') or SameText(HName, 'X-Api-Key')) then
+          ApiKeyVal := HVal;
+      end;
+    end;
+  end;
+
+  if AuthVal = '' then
+    AuthVal := Trim(ARequest.GetCustomHeader('Authorization'));
+  if TenantVal = '' then
+    TenantVal := Trim(ARequest.GetCustomHeader('X-Tenant-Id'));
+  if ApiKeyVal = '' then
+    ApiKeyVal := Trim(ARequest.GetCustomHeader('X-API-Key'));
+
+  if (AuthVal <> '') and (TenantVal <> '') then
+    Result := AuthVal + '|tenant:' + TenantVal
+  else if AuthVal <> '' then
+    Result := AuthVal
+  else if TenantVal <> '' then
+    Result := 'tenant:' + TenantVal
+  else if ApiKeyVal <> '' then
+    Result := 'apikey:' + ApiKeyVal
+  else
+    Result := '';
+end;
+
+class function TZenithIdempotency.BuildScopedStoreKey(const ANormalizedKey,
+  AScopeContext: string): string;
+var
+  ScopeDigest: string;
+begin
+  if AScopeContext = '' then
+    Result := ANormalizedKey
+  else
+  begin
+    ScopeDigest := Copy(ZenithSHA256(RawByteString(AScopeContext)), 1, 16);
+    Result := ScopeDigest + ':' + ANormalizedKey;
+  end;
+end;
+
 class function TZenithIdempotency.ComputeRequestHash(const AMethod, APath: string;
-  const AContent: RawByteString): string;
+  const AContent: RawByteString; const AScope: string): string;
 var
   Fingerprint: RawByteString;
+  ScopeHash: string;
 begin
-  Fingerprint := RawByteString(UpperCase(AMethod)) + ':' + RawByteString(APath) + ':' + AContent;
+  if AScope <> '' then
+  begin
+    ScopeHash := Copy(ZenithSHA256(RawByteString(AScope)), 1, 16);
+    Fingerprint := RawByteString(ScopeHash) + ':' +
+      RawByteString(UpperCase(AMethod)) + ':' + RawByteString(APath) + ':' + AContent;
+  end
+  else
+    Fingerprint := RawByteString(UpperCase(AMethod)) + ':' + RawByteString(APath) + ':' + AContent;
   Result := ZenithSHA256(Fingerprint);
 end;
 
-class function TZenithIdempotency.ComputeRequestHash(ARequest: TRequest): string;
+class function TZenithIdempotency.ComputeRequestHash(ARequest: TRequest;
+  const AScope: string): string;
 var
-  Target: string;
+  Target, EffectiveScope: string;
 begin
   Target := ARequest.PathInfo;
   if ARequest.QueryString <> '' then
     Target := Target + '?' + ARequest.QueryString;
-  Result := ComputeRequestHash(ARequest.Method, Target, ARequest.Content);
+  EffectiveScope := ExtractRequestScope(ARequest, AScope);
+  Result := ComputeRequestHash(ARequest.Method, Target, ARequest.Content, EffectiveScope);
+end;
+
+class function TZenithIdempotency.ComputeRequestHash(ARequest: TRequest): string;
+begin
+  Result := ComputeRequestHash(ARequest, '');
 end;
 
 class function TZenithIdempotency.ProcessBefore(ARequest: TRequest; AResponse: TResponse;
   AStore: IZenithIdempotencyStore): Boolean;
+begin
+  Result := ProcessBefore(ARequest, AResponse, '', AStore);
+end;
+
+class function TZenithIdempotency.ProcessBefore(ARequest: TRequest; AResponse: TResponse;
+  const AScope: string; AStore: IZenithIdempotencyStore): Boolean;
 var
-  RawKey, Key, ErrDetail, HashStr: string;
+  RawKey, Key, ScopedKey, ScopeCtx, ErrDetail, HashStr: string;
   Existing: TIdempotencyRecord;
   IsConflict, IsMismatch: Boolean;
   Store: IZenithIdempotencyStore;
@@ -1082,9 +1186,11 @@ begin
   if Store = nil then
     Store := DefaultStore;
 
-  HashStr := ComputeRequestHash(ARequest);
+  ScopeCtx := ExtractRequestScope(ARequest, AScope);
+  ScopedKey := BuildScopedStoreKey(Key, ScopeCtx);
+  HashStr := ComputeRequestHash(ARequest, ScopeCtx);
 
-  if not Store.TryAcquire(Key, HashStr, Existing, IsConflict, IsMismatch) then
+  if not Store.TryAcquire(ScopedKey, HashStr, Existing, IsConflict, IsMismatch) then
   begin
     { 1. Active in-flight concurrency: HTTP 409 Conflict (RFC 9457) }
     if IsConflict then
@@ -1138,8 +1244,14 @@ end;
 
 class procedure TZenithIdempotency.ProcessAfter(ARequest: TRequest; AResponse: TResponse;
   AStore: IZenithIdempotencyStore);
+begin
+  ProcessAfter(ARequest, AResponse, '', AStore);
+end;
+
+class procedure TZenithIdempotency.ProcessAfter(ARequest: TRequest; AResponse: TResponse;
+  const AScope: string; AStore: IZenithIdempotencyStore);
 var
-  Key: string;
+  Key, ScopedKey, ScopeCtx: string;
   Store: IZenithIdempotencyStore;
   Body: RawByteString;
   Headers: TIdempotencyHeaderArray;
@@ -1150,6 +1262,9 @@ begin
   Key := GetIdempotencyKey(ARequest);
   if Key = '' then Exit;
 
+  ScopeCtx := ExtractRequestScope(ARequest, AScope);
+  ScopedKey := BuildScopedStoreKey(Key, ScopeCtx);
+
   Store := AStore;
   if Store = nil then
     Store := DefaultStore;
@@ -1157,7 +1272,7 @@ begin
   { Transient server errors (HTTP 5xx or unset code): release key to allow client retry }
   if (AResponse.Code >= 500) or (AResponse.Code <= 0) then
   begin
-    Store.Release(Key);
+    Store.Release(ScopedKey);
     Exit;
   end;
 
@@ -1180,13 +1295,19 @@ begin
   Headers := ExtractResponseHeaders(AResponse);
 
   { Mark operation as completed with cached headers and body }
-  Store.Complete(Key, AResponse.Code, AResponse.ContentType, Body, Headers);
+  Store.Complete(ScopedKey, AResponse.Code, AResponse.ContentType, Body, Headers);
 end;
 
 class procedure TZenithIdempotency.ReleaseOnError(ARequest: TRequest;
   AStore: IZenithIdempotencyStore);
+begin
+  ReleaseOnError(ARequest, '', AStore);
+end;
+
+class procedure TZenithIdempotency.ReleaseOnError(ARequest: TRequest;
+  const AScope: string; AStore: IZenithIdempotencyStore);
 var
-  Key: string;
+  Key, ScopedKey, ScopeCtx: string;
   Store: IZenithIdempotencyStore;
 begin
   if not FEnabled then Exit;
@@ -1194,11 +1315,14 @@ begin
   Key := GetIdempotencyKey(ARequest);
   if Key = '' then Exit;
 
+  ScopeCtx := ExtractRequestScope(ARequest, AScope);
+  ScopedKey := BuildScopedStoreKey(Key, ScopeCtx);
+
   Store := AStore;
   if Store = nil then
     Store := DefaultStore;
 
-  Store.Release(Key);
+  Store.Release(ScopedKey);
 end;
 
 end.
