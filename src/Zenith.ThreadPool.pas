@@ -315,7 +315,16 @@ begin
       finally
         FIsBusy := False;
         Inc(FProcessedRequests);
+        {$IFDEF CPU64}
         InterlockedIncrement64(FPool.FTotalProcessed);
+        {$ELSE}
+        FPool.FLock.Acquire;
+        try
+          Inc(FPool.FTotalProcessed);
+        finally
+          FPool.FLock.Release;
+        end;
+        {$ENDIF}
       end;
       // If more connections are queued, process the next one immediately without waiting
       Continue;

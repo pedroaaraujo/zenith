@@ -276,6 +276,33 @@ begin
   Result := ABuf.Data;
 end;
 
+{$IFNDEF CPU64}
+var
+  GSSEAtomicLock: TCriticalSection;
+
+function InterLockedIncrement64(var Target: Int64): Int64;
+begin
+  GSSEAtomicLock.Enter;
+  try
+    Inc(Target);
+    Result := Target;
+  finally
+    GSSEAtomicLock.Leave;
+  end;
+end;
+
+function InterLockedExchangeAdd64(var Target: Int64; Source: Int64): Int64;
+begin
+  GSSEAtomicLock.Enter;
+  try
+    Result := Target;
+    Inc(Target, Source);
+  finally
+    GSSEAtomicLock.Leave;
+  end;
+end;
+{$ENDIF}
+
 { TZSSEFormatter }
 
 class function TZSSEFormatter.SanitizeSingleLine(const AValue: string): string;
@@ -1482,5 +1509,13 @@ begin
     FLock.Leave;
   end;
 end;
+
+{$IFNDEF CPU64}
+initialization
+  GSSEAtomicLock := TCriticalSection.Create;
+
+finalization
+  GSSEAtomicLock.Free;
+{$ENDIF}
 
 end.

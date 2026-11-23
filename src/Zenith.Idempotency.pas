@@ -24,7 +24,7 @@ unit Zenith.Idempotency;
 interface
 
 uses
-  Classes, SysUtils, SyncObjs, httpdefs, fpsha256;
+  Classes, SysUtils, SyncObjs, httpdefs, Zenith.Hash;
 
 const
   ZENITH_IDEMPOTENCY_DEFAULT_CAPACITY = 10000;
@@ -228,19 +228,8 @@ function ZenithSHA256(const AData: RawByteString): string;
 implementation
 
 function ZenithSHA256(const AData: RawByteString): string;
-var
-  Bytes: TBytes;
-  HexOut: AnsiString;
 begin
-  if Length(AData) = 0 then
-    SetLength(Bytes, 0)
-  else
-  begin
-    SetLength(Bytes, Length(AData));
-    Move(AData[1], Bytes[0], Length(AData));
-  end;
-  TSHA256.DigestHexa(Bytes, HexOut);
-  Result := LowerCase(string(HexOut));
+  Result := SHA256Hex(AData);
 end;
 
 { TIdempotencyNode }

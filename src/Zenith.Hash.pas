@@ -2,6 +2,8 @@ unit Zenith.Hash;
 
 interface
 
+function SHA256Hash(x: string): string;
+function SHA256Hex(const AData: RawByteString): string;
 function HMACSHA256(const AKey, AData: string): string;
 
 implementation
@@ -128,6 +130,24 @@ begin
   end;
   {$IFDEF RANGECHECKS_ON}{$UNDEF RANGECHECKS_ON}{$R+}{$ENDIF}
   {$IFDEF OVERFLOWCHECKS_ON}{$UNDEF OVERFLOWCHECKS_ON}{$Q+}{$ENDIF}
+end;
+
+function SHA256Hex(const AData: RawByteString): string;
+const
+  HEX_LOWER: array[0..15] of Char = '0123456789abcdef';
+var
+  Raw: string;
+  I: Integer;
+  B: Byte;
+begin
+  Raw := SHA256Hash(string(AData));
+  SetLength(Result, Length(Raw) * 2);
+  for I := 1 to Length(Raw) do
+  begin
+    B := Ord(Raw[I]);
+    Result[(I - 1) * 2 + 1] := HEX_LOWER[B shr 4];
+    Result[(I - 1) * 2 + 2] := HEX_LOWER[B and $0F];
+  end;
 end;
 
 function HMACSHA256(const AKey, AData: string): string;
