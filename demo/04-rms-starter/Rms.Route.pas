@@ -72,7 +72,7 @@ procedure RegisterRmsStarterRoutes;
 implementation
 
 { Helper: loads child TSaleItem records into TSale.items using type-safe TDeltaQuery }
-procedure LoadSaleItems(const ALease: IDeltaORMEngine; ASale: TSale);
+procedure LoadSaleItems(const ALease: IDeltaConnection; ASale: TSale);
 var
   QItems: TDeltaQuery<TSaleItem>;
   ItemList: TGDeltaModelList<TSaleItem>;
@@ -102,7 +102,7 @@ end;
 { GET /api/v1/health - Service health and entity counts }
 procedure HandleHealth(AReq: TRequest; AResp: TResponse);
 var
-  Lease: IDeltaORMEngine;
+  Lease: IDeltaConnection;
   QProd: TDeltaQuery<TProduct>;
   QCust: TDeltaQuery<TCustomer>;
   QSale: TDeltaQuery<TSale>;
@@ -139,7 +139,7 @@ end;
 procedure HandleLowStockProducts(AReq: TRequest; AResp: TResponse);
 var
   Threshold: Double;
-  Lease: IDeltaORMEngine;
+  Lease: IDeltaConnection;
   Q: TDeltaQuery<TProduct>;
   Prod: TProduct;
   RespObj: TJSONObject;
@@ -182,7 +182,7 @@ var
   Page, PageSize, TotalPages: Integer;
   TotalRecords: Int64;
   StatusFilter: string;
-  Lease: IDeltaORMEngine;
+  Lease: IDeltaConnection;
   Q: TDeltaQuery<TSale>;
   SaleRec: TSale;
   RespObj: TJSONObject;
@@ -235,7 +235,7 @@ end;
 procedure HandleGetSaleById(AReq: TRequest; AResp: TResponse);
 var
   SaleId: Int64;
-  Lease: IDeltaORMEngine;
+  Lease: IDeltaConnection;
   Q: TDeltaQuery<TSale>;
   Sale: TSale;
 begin
@@ -271,7 +271,7 @@ var
   CustomerId, ProductId, CreatedSaleId: Int64;
   Qty, UnitPrice, LineTotal, TotalAmount, StockAvail: Double;
   ProdName: string;
-  Lease: IDeltaORMEngine;
+  Lease: IDeltaConnection;
   QCust: TDeltaQuery<TCustomer>;
   QProd: TDeltaQuery<TProduct>;
   QSale: TDeltaQuery<TSale>;
@@ -482,7 +482,7 @@ end;
 procedure HandleCancelSale(AReq: TRequest; AResp: TResponse);
 var
   SaleId: Int64;
-  Lease: IDeltaORMEngine;
+  Lease: IDeltaConnection;
   QSale: TDeltaQuery<TSale>;
   QProd: TDeltaQuery<TProduct>;
   Sale: TSale;

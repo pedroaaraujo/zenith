@@ -50,7 +50,7 @@
     </Target>
     <SearchPaths>
       <IncludeFiles Value="$(ProjOutDir)"/>
-      <OtherUnitFiles Value="../../src;../../src/swagger4laz;../../src/deltamodel/src"/>
+      <OtherUnitFiles Value="../../src;../../src/swagger4laz;../../src/deltamodel/src;../../src/deltamodel/src/orm;../../src/deltamodel/src/orm/dialects;../../src/deltamodel/src/orm/drivers"/>
       <UnitOutputDirectory Value="lib/$(TargetCPU)-$(TargetOS)"/>
     </SearchPaths>
     <Parsing>

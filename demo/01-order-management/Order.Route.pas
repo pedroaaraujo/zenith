@@ -22,6 +22,7 @@ uses
   DeltaModel.Generics,
   DeltaModel.ORM.Interfaces,
   DeltaModel.ORM.Pool,
+  DeltaModel.ORM.Persister,
   DeltaModel.ORM.DML,
   DeltaModel.JsonStreamer,
   Order.Model;
@@ -101,7 +102,7 @@ procedure HandleGetOrders(AReq: TRequest; AResp: TResponse);
 var
   Page, PageSize, TotalRecords, TotalPages: Integer;
   StatusFilter: string;
-  Lease: IDeltaORMEngine;
+  Lease: IDeltaConnection;
   Q: TDeltaQuery<TSaleOrder>;
   OrderList: TGDeltaModelList<TSaleOrder>;
   ResponseObj: TJSONObject;
@@ -167,7 +168,7 @@ end;
 procedure HandleGetOrderById(AReq: TRequest; AResp: TResponse);
 var
   OrderId: Int64;
-  Lease: IDeltaORMEngine;
+  Lease: IDeltaConnection;
   Q: TDeltaQuery<TSaleOrder>;
   Order: TSaleOrder;
   JsonBytes: RawByteString;
@@ -203,7 +204,7 @@ var
   BodyObj: TJSONObject;
   ItemsArray: TJSONArray;
   CustomerId: Int64;
-  Lease: IDeltaORMEngine;
+  Lease: IDeltaConnection;
   QCust: TDeltaQuery<TCustomer>;
   QProd: TDeltaQuery<TProduct>;
   QOrder: TDeltaQuery<TSaleOrder>;
@@ -397,7 +398,7 @@ end;
 procedure HandleCancelOrder(AReq: TRequest; AResp: TResponse);
 var
   OrderId: Int64;
-  Lease: IDeltaORMEngine;
+  Lease: IDeltaConnection;
   QOrder: TDeltaQuery<TSaleOrder>;
   QProd: TDeltaQuery<TProduct>;
   Order: TSaleOrder;

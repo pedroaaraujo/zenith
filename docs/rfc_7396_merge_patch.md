@@ -80,7 +80,7 @@ function GetDirtyFieldNames: TStringArray;
 
 ```pascal
 uses
-  DeltaModel, DeltaModel.MergePatch, DeltaModel.SQLBuilder, DeltaModel.ORM.DML;
+  DeltaModel, DeltaModel.MergePatch, DeltaModel.SQLBuilder, DeltaModel.ORM.Persister;
 
 var
   Product: TProduct;
@@ -96,11 +96,11 @@ begin
     // Product.description.Dirty = True, Product.description.IsNull = True
     // Product.name.Dirty = False
 
-    SQL := TDMSQLBuilder.CreatePartialUpdate(Product, ddPostgreSQL);
+    SQL := TDMSQLBuilder.CreatePartialUpdate(Product, 'postgresql');
     // UPDATE products SET description = :description, price = :price WHERE (id = 42)
 
     // Persiste no banco executando apenas o UPDATE parcial e limpa dirty flags após sucesso
-    TUpdate.PatchObject(Engine, Product);
+    TUpdate.PatchObject(Conn, Product);
   finally
     Product.Free;
   end;
@@ -182,7 +182,8 @@ end;
 
 ```bash
 fpc -FE/tmp/dm_mp_build -FU/tmp/dm_mp_build \
-  -Fusrc/deltamodel/src -Fusrc -Fusrc/deltamodel/tests/src \
+  -Fusrc/deltamodel/src -Fusrc/deltamodel/src/orm -Fusrc/deltamodel/src/orm/dialects -Fusrc/deltamodel/src/orm/drivers \
+  -Fusrc -Fusrc/deltamodel/tests/src \
   src/deltamodel/tests/test_merge_patch_runner.lpr
 
 /tmp/dm_mp_build/test_merge_patch_runner -a --format=plain

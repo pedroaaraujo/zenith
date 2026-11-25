@@ -11,7 +11,9 @@ uses
   swagger4laz,
   Zenith.App, Zenith.Consts, Zenith.Exceptions, Zenith.Messages,
   Zenith.Security, Zenith.Crud.Interceptor,
-  DeltaModel, DeltaModel.Fields, DeltaModel.Metadata, DeltaModel.ORM.Pool, DeltaModel.ORM.DML, DeltaModel.Generics;
+  DeltaModel, DeltaModel.Fields, DeltaModel.Metadata,
+  DeltaModel.ORM.Interfaces, DeltaModel.ORM.Pool, DeltaModel.ORM.Persister,
+  DeltaModel.ORM.DML, DeltaModel.Generics;
 
 type
   { Modern Fluent REST CRUD Controller and Auto-Router for Zenith }
@@ -381,7 +383,7 @@ end;
 procedure TZenithCrud<T>.DoGetAll(ARequest: TRequest; AResponse: TResponse);
 var
   SecCtx: TZSecurityContext;
-  Lease: IDeltaPooledEngine;
+  Lease: IDeltaConnection;
   Query: TDeltaQuery<T>;
   List: TGDeltaModelList<T>;
   PageNum, PageSz: Integer;
@@ -450,7 +452,7 @@ end;
 procedure TZenithCrud<T>.DoGetById(ARequest: TRequest; AResponse: TResponse);
 var
   SecCtx: TZSecurityContext;
-  Lease: IDeltaPooledEngine;
+  Lease: IDeltaConnection;
   Query: TDeltaQuery<T>;
   Item: T;
   IdVal: Int64;
@@ -494,7 +496,7 @@ end;
 procedure TZenithCrud<T>.DoCreateItem(ARequest: TRequest; AResponse: TResponse);
 var
   SecCtx: TZSecurityContext;
-  Lease: IDeltaPooledEngine;
+  Lease: IDeltaConnection;
   Item: T;
   Query: TDeltaQuery<T>;
 begin
@@ -543,7 +545,7 @@ end;
 procedure TZenithCrud<T>.DoUpdateItem(ARequest: TRequest; AResponse: TResponse);
 var
   SecCtx: TZSecurityContext;
-  Lease: IDeltaPooledEngine;
+  Lease: IDeltaConnection;
   ExistingItem, InputItem: T;
   Query: TDeltaQuery<T>;
   IdVal: Int64;
@@ -618,7 +620,7 @@ end;
 procedure TZenithCrud<T>.DoDeleteItem(ARequest: TRequest; AResponse: TResponse);
 var
   SecCtx: TZSecurityContext;
-  Lease: IDeltaPooledEngine;
+  Lease: IDeltaConnection;
   Query: TDeltaQuery<T>;
   ExistingItem: T;
   IdVal: Int64;
@@ -647,7 +649,7 @@ begin
       if ExistingItem = nil then
         raise EResourceNotFound.Create(TitleNotFound);
       try
-        if not Lease.DeleteById(T, IdVal) then
+        if not TDeltaPersister.Delete(Lease, ExistingItem) then
           raise EResourceNotFound.Create(TitleNotFound);
 
         AResponse.Code := StatusNoContent;

@@ -60,6 +60,9 @@ fpc -MDelphi -Scghi -O2 \
   -FU/tmp/zenith_order_build \
   -Fu../../src \
   -Fu../../src/deltamodel/src \
+  -Fu../../src/deltamodel/src/orm \
+  -Fu../../src/deltamodel/src/orm/dialects \
+  -Fu../../src/deltamodel/src/orm/drivers \
   -Fu../../src/swagger4laz \
   -Fu. \
   order_management.lpr

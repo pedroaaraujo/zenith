@@ -19,8 +19,9 @@ interface
 uses
   Classes, SysUtils, fpcunit, testregistry, fphttpclient, fpjson, jsonparser,
   sqlite3conn, HTTPDefs, httproute, fphttpapp,
-  DeltaModel, DeltaModel.Fields, DeltaModel.ORM.Connection, DeltaModel.ORM.Pool,
-  DeltaModel.ORM.Schema,
+  DeltaModel, DeltaModel.Fields, DeltaModel.ORM.Interfaces,
+  DeltaModel.ORM.Registry, DeltaModel.ORM.Dialects, DeltaModel.ORM.Driver.SQLDB,
+  DeltaModel.ORM.Pool, DeltaModel.ORM.Schema,
   Zenith.App, Zenith.Crud, Zenith.Auth.JWT, Zenith.Security, Zenith.Gzip, Zenith.Exceptions;
 
 type
@@ -112,7 +113,7 @@ end;
 procedure EnsureE2EServer;
 var
   DbUrl: string;
-  Engine: TDeltaORMEngine;
+  Conn: IDeltaConnection;
   Schema: TDeltaORMSchema;
 begin
   if GServerThread <> nil then
@@ -121,10 +122,9 @@ begin
   GDbPath := GetTempFileName('', 'ze2e') + '.sqlite';
   DbUrl := 'sqlite://' + ExpandFileName(GDbPath);
 
-  Engine := TDeltaORMEngine.Create(DbUrl);
+  Conn := TDeltaORM.Connect(DbUrl);
   try
-    Engine.Connection.Open;
-    Schema := TDeltaORMSchema.Create(Engine);
+    Schema := TDeltaORMSchema.Create(Conn);
     try
       Schema.RegisterModel(TE2EItem);
       Schema.PrepareDB(True);
@@ -132,7 +132,8 @@ begin
       Schema.Free;
     end;
   finally
-    Engine.Free;
+    Conn.Disconnect;
+    Conn := nil;
   end;
 
   GPool := TDeltaConnectionPool.Create(DbUrl, 1, 5);

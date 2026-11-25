@@ -16,7 +16,7 @@ uses
   DeltaModel,
   DeltaModel.Fields,
   DeltaModel.Generics,
-  DeltaModel.ORM.Connection,
+  DeltaModel.ORM.Interfaces,
   DeltaModel.ORM.Pool,
   DeltaModel.ORM.Schema,
   Zenith.SSE;
@@ -121,7 +121,7 @@ type
   end;
 
 procedure InitializeRmsStore;
-procedure SeedRmsDatabaseIfEmpty(Engine: TDeltaORMEngine);
+procedure SeedRmsDatabaseIfEmpty(const AConn: IDeltaConnection);
 
 var
   RmsPool: TDeltaConnectionPool;
@@ -130,7 +130,10 @@ var
 implementation
 
 uses
-  Zenith.Env;
+  Zenith.Env,
+  DeltaModel.ORM.Registry,
+  DeltaModel.ORM.Dialects,
+  DeltaModel.ORM.Driver.SQLDB;
 
 { TProduct }
 
@@ -179,14 +182,14 @@ end;
 
 { SeedRmsDatabaseIfEmpty }
 
-procedure SeedRmsDatabaseIfEmpty(Engine: TDeltaORMEngine);
+procedure SeedRmsDatabaseIfEmpty(const AConn: IDeltaConnection);
   procedure InsertProduct(const ASku, AName, ACategory: string; APrice, AStock: Double);
   var
     P: TProduct;
     Q: TDeltaQuery<TProduct>;
   begin
     P := TProduct.Create;
-    Q := TDeltaQuery<TProduct>.Create(Engine);
+    Q := TDeltaQuery<TProduct>.Create(AConn);
     try
       P.sku.Value := ASku;
       P.name.Value := AName;
@@ -207,7 +210,7 @@ procedure SeedRmsDatabaseIfEmpty(Engine: TDeltaORMEngine);
     Q: TDeltaQuery<TCustomer>;
   begin
     C := TCustomer.Create;
-    Q := TDeltaQuery<TCustomer>.Create(Engine);
+    Q := TDeltaQuery<TCustomer>.Create(AConn);
     try
       C.name.Value := AName;
       C.tax_id.Value := ATaxId;
@@ -227,7 +230,7 @@ procedure SeedRmsDatabaseIfEmpty(Engine: TDeltaORMEngine);
     Q: TDeltaQuery<TSaleItem>;
   begin
     Item := TSaleItem.Create;
-    Q := TDeltaQuery<TSaleItem>.Create(Engine);
+    Q := TDeltaQuery<TSaleItem>.Create(AConn);
     try
       Item.sale_id.Value := ASaleId;
       Item.product_id.Value := AProductId;
@@ -247,7 +250,7 @@ var
   ProdCount: Int64;
   S: TSale;
 begin
-  QProduct := TDeltaQuery<TProduct>.Create(Engine);
+  QProduct := TDeltaQuery<TProduct>.Create(AConn);
   try
     ProdCount := QProduct.Count;
   finally
@@ -258,7 +261,7 @@ begin
     Exit;
 
   WriteLn('[Seed] Populating initial RMS catalog, customers, and sample sales...');
-  Engine.StartTransaction;
+  AConn.StartTransaction;
   try
     // Sample products (including one low-stock item for /low-stock demonstration)
     InsertProduct('LAP-PRO-15', 'Workstation Laptop Pro 15 (32GB RAM, 1TB NVMe)', 'Computers', 1899.00, 14.0);
@@ -274,7 +277,7 @@ begin
 
     // Sample sale #1
     S := TSale.Create;
-    QSale := TDeltaQuery<TSale>.Create(Engine);
+    QSale := TDeltaQuery<TSale>.Create(AConn);
     try
       S.sale_number.Value := 'SALE-2026-0001';
       S.customer_id.Value := 1;
@@ -291,7 +294,7 @@ begin
 
     // Sample sale #2
     S := TSale.Create;
-    QSale := TDeltaQuery<TSale>.Create(Engine);
+    QSale := TDeltaQuery<TSale>.Create(AConn);
     try
       S.sale_number.Value := 'SALE-2026-0002';
       S.customer_id.Value := 2;
@@ -305,10 +308,10 @@ begin
       S.Free;
     end;
 
-    Engine.Commit;
+    AConn.Commit;
     WriteLn('[Seed] Initial RMS dataset ready.');
   except
-    Engine.Rollback;
+    AConn.Rollback;
     raise;
   end;
 end;
@@ -316,7 +319,7 @@ end;
 procedure InitializeRmsStore;
 var
   DatabaseURL, DatabasePath: string;
-  Engine: TDeltaORMEngine;
+  Conn: IDeltaConnection;
   Schema: TDeltaORMSchema;
 begin
   if not Assigned(RmsEventBroker) then
@@ -330,10 +333,9 @@ begin
   DatabaseURL := GetEnvVariable('ZENITH_RMS_DATABASE_URL',
     'sqlite://' + ExpandFileName(DatabasePath));
 
-  Engine := TDeltaORMEngine.Create(DatabaseURL);
+  Conn := TDeltaORM.Connect(DatabaseURL);
   try
-    Engine.Connection.Open;
-    Schema := TDeltaORMSchema.Create(Engine);
+    Schema := TDeltaORMSchema.Create(Conn);
     try
       Schema.RegisterModel(TProduct);
       Schema.RegisterModel(TCustomer);
@@ -344,9 +346,10 @@ begin
       Schema.Free;
     end;
 
-    SeedRmsDatabaseIfEmpty(Engine);
+    SeedRmsDatabaseIfEmpty(Conn);
   finally
-    Engine.Free;
+    Conn.Disconnect;
+    Conn := nil;
   end;
 
   RmsPool := TDeltaConnectionPool.Create(DatabaseURL, 1, 10);

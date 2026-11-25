@@ -10,7 +10,7 @@ uses
   DeltaModel,
   DeltaModel.Fields,
   DeltaModel.Generics,
-  DeltaModel.ORM.Connection,
+  DeltaModel.ORM.Interfaces,
   DeltaModel.ORM.Pool,
   DeltaModel.ORM.Schema;
 
@@ -110,7 +110,7 @@ type
   end;
 
 procedure InitializeOrderStore;
-procedure SeedDatabaseIfEmpty(Engine: TDeltaORMEngine);
+procedure SeedDatabaseIfEmpty(const AConn: IDeltaConnection);
 
 var
   OrderPool: TDeltaConnectionPool;
@@ -118,7 +118,10 @@ var
 implementation
 
 uses
-  Zenith.Env;
+  Zenith.Env,
+  DeltaModel.ORM.Registry,
+  DeltaModel.ORM.Dialects,
+  DeltaModel.ORM.Driver.SQLDB;
 
 { TProduct }
 
@@ -166,7 +169,7 @@ end;
 
 { SeedDatabaseIfEmpty }
 
-procedure SeedDatabaseIfEmpty(Engine: TDeltaORMEngine);
+procedure SeedDatabaseIfEmpty(const AConn: IDeltaConnection);
 var
   QProduct: TDeltaQuery<TProduct>;
   QCustomer: TDeltaQuery<TCustomer>;
@@ -178,7 +181,7 @@ var
   O: TSaleOrder;
   Itm: TSaleOrderItem;
 begin
-  QProduct := TDeltaQuery<TProduct>.Create(Engine);
+  QProduct := TDeltaQuery<TProduct>.Create(AConn);
   try
     ProdCount := QProduct.Count;
   finally
@@ -188,7 +191,7 @@ begin
   if ProdCount = 0 then
   begin
     WriteLn('[Seed] Inserindo catálogo de produtos de demonstração...');
-    Engine.StartTransaction;
+    AConn.StartTransaction;
     try
       // Produto 1
       P := TProduct.Create;
@@ -198,7 +201,7 @@ begin
         P.price.Value := 8999.00;
         P.stock.Value := 15.0;
         P.active.Value := True;
-        QProduct := TDeltaQuery<TProduct>.Create(Engine);
+        QProduct := TDeltaQuery<TProduct>.Create(AConn);
         try
           QProduct.Insert(P);
         finally
@@ -216,7 +219,7 @@ begin
         P.price.Value := 1250.00;
         P.stock.Value := 30.0;
         P.active.Value := True;
-        QProduct := TDeltaQuery<TProduct>.Create(Engine);
+        QProduct := TDeltaQuery<TProduct>.Create(AConn);
         try
           QProduct.Insert(P);
         finally
@@ -234,7 +237,7 @@ begin
         P.price.Value := 580.00;
         P.stock.Value := 45.0;
         P.active.Value := True;
-        QProduct := TDeltaQuery<TProduct>.Create(Engine);
+        QProduct := TDeltaQuery<TProduct>.Create(AConn);
         try
           QProduct.Insert(P);
         finally
@@ -252,7 +255,7 @@ begin
         P.price.Value := 650.00;
         P.stock.Value := 25.0;
         P.active.Value := True;
-        QProduct := TDeltaQuery<TProduct>.Create(Engine);
+        QProduct := TDeltaQuery<TProduct>.Create(AConn);
         try
           QProduct.Insert(P);
         finally
@@ -270,7 +273,7 @@ begin
         P.price.Value := 2199.00;
         P.stock.Value := 18.0;
         P.active.Value := True;
-        QProduct := TDeltaQuery<TProduct>.Create(Engine);
+        QProduct := TDeltaQuery<TProduct>.Create(AConn);
         try
           QProduct.Insert(P);
         finally
@@ -288,7 +291,7 @@ begin
         C.document.Value := '12.345.678/0001-90';
         C.email.Value := 'contato@acmetech.com.br';
         C.credit_limit.Value := 50000.00;
-        QCustomer := TDeltaQuery<TCustomer>.Create(Engine);
+        QCustomer := TDeltaQuery<TCustomer>.Create(AConn);
         try
           QCustomer.Insert(C);
         finally
@@ -305,7 +308,7 @@ begin
         C.document.Value := '98.765.432/0001-10';
         C.email.Value := 'compras@globallog.com.br';
         C.credit_limit.Value := 120000.00;
-        QCustomer := TDeltaQuery<TCustomer>.Create(Engine);
+        QCustomer := TDeltaQuery<TCustomer>.Create(AConn);
         try
           QCustomer.Insert(C);
         finally
@@ -322,7 +325,7 @@ begin
         C.document.Value := '123.456.789-00';
         C.email.Value := 'roberto.silveira@consultoria.med.br';
         C.credit_limit.Value := 15000.00;
-        QCustomer := TDeltaQuery<TCustomer>.Create(Engine);
+        QCustomer := TDeltaQuery<TCustomer>.Create(AConn);
         try
           QCustomer.Insert(C);
         finally
@@ -341,7 +344,7 @@ begin
         O.order_date.Value := Now - 2;
         O.total_amount.Value := 10249.00;
         O.status.Value := ORDER_STATUS_CONFIRMED;
-        QOrder := TDeltaQuery<TSaleOrder>.Create(Engine);
+        QOrder := TDeltaQuery<TSaleOrder>.Create(AConn);
         try
           QOrder.Insert(O);
         finally
@@ -356,7 +359,7 @@ begin
           Itm.quantity.Value := 1;
           Itm.unit_price.Value := 8999.00;
           Itm.total_price.Value := 8999.00;
-          QItem := TDeltaQuery<TSaleOrderItem>.Create(Engine);
+          QItem := TDeltaQuery<TSaleOrderItem>.Create(AConn);
           try
             QItem.Insert(Itm);
           finally
@@ -374,7 +377,7 @@ begin
           Itm.quantity.Value := 1;
           Itm.unit_price.Value := 1250.00;
           Itm.total_price.Value := 1250.00;
-          QItem := TDeltaQuery<TSaleOrderItem>.Create(Engine);
+          QItem := TDeltaQuery<TSaleOrderItem>.Create(AConn);
           try
             QItem.Insert(Itm);
           finally
@@ -395,7 +398,7 @@ begin
         O.order_date.Value := Now - 1;
         O.total_amount.Value := 4398.00;
         O.status.Value := ORDER_STATUS_CONFIRMED;
-        QOrder := TDeltaQuery<TSaleOrder>.Create(Engine);
+        QOrder := TDeltaQuery<TSaleOrder>.Create(AConn);
         try
           QOrder.Insert(O);
         finally
@@ -410,7 +413,7 @@ begin
           Itm.quantity.Value := 2;
           Itm.unit_price.Value := 2199.00;
           Itm.total_price.Value := 4398.00;
-          QItem := TDeltaQuery<TSaleOrderItem>.Create(Engine);
+          QItem := TDeltaQuery<TSaleOrderItem>.Create(AConn);
           try
             QItem.Insert(Itm);
           finally
@@ -423,10 +426,10 @@ begin
         O.Free;
       end;
 
-      Engine.Commit;
+      AConn.Commit;
       WriteLn('[Seed] Carga inicial concluída com sucesso!');
     except
-      Engine.Rollback;
+      AConn.Rollback;
       raise;
     end;
   end;
@@ -435,7 +438,7 @@ end;
 procedure InitializeOrderStore;
 var
   DatabaseURL, DatabasePath: string;
-  Engine: TDeltaORMEngine;
+  Conn: IDeltaConnection;
   Schema: TDeltaORMSchema;
 begin
   if Assigned(OrderPool) then
@@ -446,10 +449,9 @@ begin
   DatabaseURL := GetEnvVariable('ZENITH_ORDER_DATABASE_URL',
     'sqlite://' + ExpandFileName(DatabasePath));
 
-  Engine := TDeltaORMEngine.Create(DatabaseURL);
+  Conn := TDeltaORM.Connect(DatabaseURL);
   try
-    Engine.Connection.Open;
-    Schema := TDeltaORMSchema.Create(Engine);
+    Schema := TDeltaORMSchema.Create(Conn);
     try
       Schema.RegisterModel(TProduct);
       Schema.RegisterModel(TCustomer);
@@ -460,9 +462,10 @@ begin
       Schema.Free;
     end;
 
-    SeedDatabaseIfEmpty(Engine);
+    SeedDatabaseIfEmpty(Conn);
   finally
-    Engine.Free;
+    Conn.Disconnect;
+    Conn := nil;
   end;
 
   OrderPool := TDeltaConnectionPool.Create(DatabaseURL, 1, 10);

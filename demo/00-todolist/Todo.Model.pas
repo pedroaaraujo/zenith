@@ -6,7 +6,7 @@ interface
 
 uses
   Classes, SysUtils, DeltaModel, DeltaModel.Fields, DeltaValidator,
-  DeltaModel.ORM.Connection, DeltaModel.ORM.Pool;
+  DeltaModel.ORM.Interfaces, DeltaModel.ORM.Pool;
 
 type
   TTodoInsert = class(TDeltaModel)
@@ -38,7 +38,8 @@ var
 implementation
 
 uses
-  Zenith.Env, DeltaModel.ORM.Schema;
+  Zenith.Env, DeltaModel.ORM.Registry, DeltaModel.ORM.Dialects,
+  DeltaModel.ORM.Driver.SQLDB, DeltaModel.ORM.Schema;
 
 class procedure TTodoInsert.ConfigureSchema(ASchema: TDeltaModelSchema);
 begin
@@ -64,7 +65,7 @@ end;
 procedure InitializeTodoStore;
 var
   DatabaseURL, DatabasePath: string;
-  Engine: TDeltaORMEngine;
+  Conn: IDeltaConnection;
   Schema: TDeltaORMSchema;
 begin
   if Assigned(TodoPool) then
@@ -75,10 +76,9 @@ begin
   DatabaseURL := GetEnvVariable('ZENITH_TODO_DATABASE_URL',
     'sqlite://' + ExpandFileName(DatabasePath));
 
-  Engine := TDeltaORMEngine.Create(DatabaseURL);
+  Conn := TDeltaORM.Connect(DatabaseURL);
   try
-    Engine.Connection.Open;
-    Schema := TDeltaORMSchema.Create(Engine);
+    Schema := TDeltaORMSchema.Create(Conn);
     try
       Schema.RegisterModel(TTodo);
       Schema.PrepareDB(True);
@@ -86,7 +86,8 @@ begin
       Schema.Free;
     end;
   finally
-    Engine.Free;
+    Conn.Disconnect;
+    Conn := nil;
   end;
 
   TodoPool := TDeltaConnectionPool.Create(DatabaseURL, 1, 10);

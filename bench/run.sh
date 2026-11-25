@@ -12,7 +12,9 @@ mkdir -p "$OUT/fu" "$OUT/zu"
 echo "[build] fpWeb (somente units do FPC)"
 fpc -O2 -MObjFPC -Sh -FE"$OUT" -FU"$OUT/fu" "$ROOT/bench/fpweb/fpweb_bench.lpr" >/dev/null
 echo "[build] Zenith"
-fpc -O2 -MObjFPC -Sh -Fu"$ROOT/src" -Fu"$ROOT/src/deltamodel/src" -Fu"$ROOT/src/swagger4laz" \
+fpc -O2 -MObjFPC -Sh -Fu"$ROOT/src" -Fu"$ROOT/src/deltamodel/src" \
+    -Fu"$ROOT/src/deltamodel/src/orm" -Fu"$ROOT/src/deltamodel/src/orm/dialects" -Fu"$ROOT/src/deltamodel/src/orm/drivers" \
+    -Fu"$ROOT/src/swagger4laz" \
     -Fu"$ROOT/bench/zenith" -FE"$OUT" -FU"$OUT/zu" "$ROOT/bench/zenith/zenith_bench.lpr" >/dev/null
 
 echo '{"id":1,"name":"Item 1","price":1.5,"active":true}' > "$OUT/echo.json"

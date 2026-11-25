@@ -25,13 +25,13 @@ jobs:
       - name: Run Zenith Security, SSE and Unit/E2E suites
         run: |
           mkdir -p /tmp/zenith-ci
-          fpc -B -Mobjfpc -Sh -Fusrc -Fusrc/deltamodel/src -Fusrc/swagger4laz -FE/tmp/zenith-ci -FU/tmp/zenith-ci tests/src/test_security_runner.lpr
+          fpc -B -Mobjfpc -Sh -Fusrc -Fusrc/deltamodel/src -Fusrc/deltamodel/src/orm -Fusrc/deltamodel/src/orm/dialects -Fusrc/deltamodel/src/orm/drivers -Fusrc/swagger4laz -FE/tmp/zenith-ci -FU/tmp/zenith-ci tests/src/test_security_runner.lpr
           /tmp/zenith-ci/test_security_runner -a --format=plain
 
-          fpc -B -Mobjfpc -Sh -Fusrc -Fusrc/deltamodel/src -Fusrc/swagger4laz -FE/tmp/zenith-ci -FU/tmp/zenith-ci tests/src/test_sse_runner.lpr
+          fpc -B -Mobjfpc -Sh -Fusrc -Fusrc/deltamodel/src -Fusrc/deltamodel/src/orm -Fusrc/deltamodel/src/orm/dialects -Fusrc/deltamodel/src/orm/drivers -Fusrc/swagger4laz -FE/tmp/zenith-ci -FU/tmp/zenith-ci tests/src/test_sse_runner.lpr
           /tmp/zenith-ci/test_sse_runner -a --format=plain
 
-          fpc -B -Mobjfpc -Sh -Fusrc -Fusrc/deltamodel/src -Fusrc/swagger4laz -FE/tmp/zenith-ci -FU/tmp/zenith-ci tests/src/test_zenith_runner.lpr
+          fpc -B -Mobjfpc -Sh -Fusrc -Fusrc/deltamodel/src -Fusrc/deltamodel/src/orm -Fusrc/deltamodel/src/orm/dialects -Fusrc/deltamodel/src/orm/drivers -Fusrc/swagger4laz -FE/tmp/zenith-ci -FU/tmp/zenith-ci tests/src/test_zenith_runner.lpr
           /tmp/zenith-ci/test_zenith_runner -a --format=plain
 
       - name: Run Swagger4Laz and DeltaModel unit suites
@@ -40,21 +40,21 @@ jobs:
           fpc -B -Mobjfpc -Sh -Fusrc -Fusrc/swagger4laz -FE/tmp/zenith-ci -FU/tmp/zenith-ci src/swagger4laz/demo/test_swagger.lpr
           /tmp/zenith-ci/test_swagger -a --format=plain
 
-          fpc -B -Mobjfpc -Sh -Fisrc/deltamodel/src -Fusrc -Fusrc/deltamodel/src -FE/tmp/zenith-ci -FU/tmp/zenith-ci src/deltamodel/tests/test_suite.lpr
+          fpc -B -Mobjfpc -Sh -Fisrc/deltamodel/src -Fusrc -Fusrc/deltamodel/src -Fusrc/deltamodel/src/orm -Fusrc/deltamodel/src/orm/dialects -Fusrc/deltamodel/src/orm/drivers -FE/tmp/zenith-ci -FU/tmp/zenith-ci src/deltamodel/tests/test_suite.lpr
           /tmp/zenith-ci/test_suite -a --format=plain
 
           for runner in test_domains_runner.lpr test_merge_patch_runner.lpr test_api_doc_runner.lpr test_autoincrement.lpr test_migrations.lpr; do
-            fpc -B -Mobjfpc -Sh -Fisrc/deltamodel/src -Fusrc -Fusrc/deltamodel/src -Fusrc/deltamodel/tests/src -FE/tmp/zenith-ci -FU/tmp/zenith-ci "src/deltamodel/tests/${runner}"
+            fpc -B -Mobjfpc -Sh -Fisrc/deltamodel/src -Fusrc -Fusrc/deltamodel/src -Fusrc/deltamodel/src/orm -Fusrc/deltamodel/src/orm/dialects -Fusrc/deltamodel/src/orm/drivers -Fusrc/deltamodel/tests/src -FE/tmp/zenith-ci -FU/tmp/zenith-ci "src/deltamodel/tests/${runner}"
             "/tmp/zenith-ci/${runner%.lpr}" -a --format=plain
           done
 
       - name: Build demos
         run: |
           mkdir -p /tmp/zenith-ci
-          fpc -B -Mobjfpc -Sh -Fusrc -Fusrc/deltamodel/src -Fusrc/swagger4laz -FE/tmp/zenith-ci -FU/tmp/zenith-ci demo/00-todolist/todolist.lpr
-          fpc -B -Mobjfpc -Sh -Fusrc -Fusrc/deltamodel/src -Fusrc/swagger4laz -FE/tmp/zenith-ci -FU/tmp/zenith-ci demo/01-order-management/order_management.lpr
-          fpc -B -Mobjfpc -Sh -Fusrc -Fusrc/deltamodel/src -Fusrc/swagger4laz -FE/tmp/zenith-ci -FU/tmp/zenith-ci demo/03-websocket/websocket_demo.lpr
-          fpc -B -Mobjfpc -Sh -Fusrc -Fusrc/deltamodel/src -Fusrc/swagger4laz -FE/tmp/zenith-ci -FU/tmp/zenith-ci demo/04-rms-starter/rms_starter.lpr
+          fpc -B -Mobjfpc -Sh -Fusrc -Fusrc/deltamodel/src -Fusrc/deltamodel/src/orm -Fusrc/deltamodel/src/orm/dialects -Fusrc/deltamodel/src/orm/drivers -Fusrc/swagger4laz -FE/tmp/zenith-ci -FU/tmp/zenith-ci demo/00-todolist/todolist.lpr
+          fpc -B -Mobjfpc -Sh -Fusrc -Fusrc/deltamodel/src -Fusrc/deltamodel/src/orm -Fusrc/deltamodel/src/orm/dialects -Fusrc/deltamodel/src/orm/drivers -Fusrc/swagger4laz -FE/tmp/zenith-ci -FU/tmp/zenith-ci demo/01-order-management/order_management.lpr
+          fpc -B -Mobjfpc -Sh -Fusrc -Fusrc/deltamodel/src -Fusrc/deltamodel/src/orm -Fusrc/deltamodel/src/orm/dialects -Fusrc/deltamodel/src/orm/drivers -Fusrc/swagger4laz -FE/tmp/zenith-ci -FU/tmp/zenith-ci demo/03-websocket/websocket_demo.lpr
+          fpc -B -Mobjfpc -Sh -Fusrc -Fusrc/deltamodel/src -Fusrc/deltamodel/src/orm -Fusrc/deltamodel/src/orm/dialects -Fusrc/deltamodel/src/orm/drivers -Fusrc/swagger4laz -FE/tmp/zenith-ci -FU/tmp/zenith-ci demo/04-rms-starter/rms_starter.lpr
 
   deltamodel-podman-matrix:
     name: DeltaModel DB Integration Matrix
