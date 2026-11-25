@@ -378,6 +378,24 @@ ZENITH_JWT_EXPIRATION=30
 ZENITH_TODO_DATABASE=/var/lib/minha-api/todo.sqlite
 ```
 
+Ordem de resolução: `SetEnvVariable` > ambiente do sistema > `.env` (lido uma vez na inicialização; `ReloadEnvFile` recarrega) > padrão. O parser do `.env` aceita comentários `#`, `export VAR=...` e aspas simples/duplas. Flags booleanas aceitam `Y/YES/S/SIM/TRUE/ON/1` (e os negativos) via `GetEnvBool`.
+
+| Variável | Padrão | Finalidade |
+| :--- | :--- | :--- |
+| `ZENITH_ALLOW_CORS` | `N` | CORS é **opt-in**. Com `Y`, os headers CORS são emitidos por requisição. |
+| `ZENITH_CORS_ORIGIN` | *(vazio)* | Allowlist separada por vírgula. O `Origin` da requisição só é devolvido quando listado (com `Vary: Origin`); `*` libera qualquer origem e nunca envia credenciais. |
+| `ZENITH_CORS_ALLOW_CREDENTIALS` | `N` | Envia `Access-Control-Allow-Credentials: true` para origens da allowlist. |
+| `ZENITH_MAX_BODY_SIZE` | `10485760` | Corpo máximo em bytes; `Content-Length` maior responde `413`. |
+| `ZENITH_MAX_HEADER_SIZE` | `65536` | Tamanho máximo da linha inicial mais headers; acima disso responde `431`. |
+| `ZENITH_READ_TIMEOUT_MS` | `30000` | Timeout de cada leitura e prazo total para receber os headers (`408`). Vale só durante a leitura da requisição; SSE/WebSocket não são afetados. `0` desativa. |
+| `ZENITH_CRUD_MAX_PAGE_SIZE` | `100` | Teto de `limit`/`page_size` nas listagens do `TZenithCrud`. |
+| `ZENITH_JWT_ISSUER` / `ZENITH_JWT_AUDIENCE` | *(vazio)* | Quando definidos, os tokens saem com `iss`/`aud` e a validação exige que coincidam. |
+| `ZENITH_WS_ALLOWED_ORIGINS` | *(vazio)* | Handshakes WebSocket com header `Origin` precisam ser da mesma origem (`Host`) ou estar listados; `*` libera qualquer. Clientes sem `Origin` são aceitos. |
+| `ZENITH_LOG_DEBUG` | `N` | Habilita o nível `DEBUG` do log. |
+| `ZENITH_LOGFILE` | *(vazio)* | Também grava as linhas de log neste arquivo. |
+
+> **Notas de segurança:** o `TZenithCrud` valida `sort`/`order_by` contra os campos do modelo (`?sort=-id,nome` ou `?sort=nome desc`); qualquer outra entrada responde `400`. Use `ZENITH_JWT_SECRET` com pelo menos 32 bytes (RFC 7518); segredos menores geram aviso no log. Crie o pool de conexões **antes** de registrar as rotas do `TZenithCrud` (o construtor rejeita pool `nil`).
+
 ---
 
 ## 🌐 Deploy em Produção

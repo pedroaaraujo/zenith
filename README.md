@@ -378,6 +378,24 @@ ZENITH_JWT_EXPIRATION=30
 ZENITH_TODO_DATABASE=/var/lib/myapi/todo.sqlite
 ```
 
+Resolution order: `SetEnvVariable` > OS environment > `.env` (read once at startup; `ReloadEnvFile` reloads it) > default. The `.env` parser accepts `#` comments, `export VAR=...` and single/double quotes. Boolean flags accept `Y/YES/S/SIM/TRUE/ON/1` (and their negatives) through `GetEnvBool`.
+
+| Variable | Default | Purpose |
+| :--- | :--- | :--- |
+| `ZENITH_ALLOW_CORS` | `N` | CORS is **opt-in**. With `Y`, CORS headers are emitted per request. |
+| `ZENITH_CORS_ORIGIN` | *(empty)* | Comma-separated allowlist. The request `Origin` is echoed only when listed (plus `Vary: Origin`); `*` allows any origin and never sends credentials. |
+| `ZENITH_CORS_ALLOW_CREDENTIALS` | `N` | Sends `Access-Control-Allow-Credentials: true` for allowlisted origins. |
+| `ZENITH_MAX_BODY_SIZE` | `10485760` | Maximum request body in bytes; larger `Content-Length` returns `413`. |
+| `ZENITH_MAX_HEADER_SIZE` | `65536` | Maximum size of the request line plus headers; larger returns `431`. |
+| `ZENITH_READ_TIMEOUT_MS` | `30000` | Per-read socket timeout and total deadline to receive the headers (`408`). Applies only while reading the request; SSE/WebSocket are not affected. `0` disables. |
+| `ZENITH_CRUD_MAX_PAGE_SIZE` | `100` | Upper bound for `limit`/`page_size` in `TZenithCrud` listings. |
+| `ZENITH_JWT_ISSUER` / `ZENITH_JWT_AUDIENCE` | *(empty)* | When set, tokens are issued with `iss`/`aud` and validation requires them to match. |
+| `ZENITH_WS_ALLOWED_ORIGINS` | *(empty)* | WebSocket handshakes with an `Origin` header must be same-origin (`Host`) or listed here; `*` allows any. Clients without `Origin` are accepted. |
+| `ZENITH_LOG_DEBUG` | `N` | Enables the `DEBUG` log level. |
+| `ZENITH_LOGFILE` | *(empty)* | Also appends log lines to this file. |
+
+> **Security notes:** `TZenithCrud` validates `sort`/`order_by` against the model fields (`?sort=-id,name` or `?sort=name desc`); anything else returns `400`. Use `ZENITH_JWT_SECRET` with at least 32 bytes (RFC 7518); shorter secrets log a warning. Create the connection pool **before** registering `TZenithCrud` routes (the constructor rejects a `nil` pool).
+
 ---
 
 ## 🌐 Production Deployment
