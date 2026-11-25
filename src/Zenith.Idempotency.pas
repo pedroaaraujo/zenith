@@ -937,8 +937,10 @@ var
 begin
   ARawKey := '';
   Result := False;
+  if (ARequest = nil) or (ARequest.CustomHeaders.Count = 0) then
+    Exit;
 
-  { 1. Inspect CustomHeaders directly to distinguish absent vs present-but-empty header }
+  { Inspect CustomHeaders directly to distinguish absent vs present-but-empty header }
   for I := 0 to ARequest.CustomHeaders.Count - 1 do
   begin
     Line := ARequest.CustomHeaders[I];
@@ -960,18 +962,6 @@ begin
       Exit;
     end;
   end;
-
-  { 2. Fallback to GetCustomHeader for request adapters with alternate header storage }
-  ARawKey := ARequest.GetCustomHeader('Idempotency-Key');
-  if ARawKey <> '' then
-  begin
-    Result := True;
-    Exit;
-  end;
-
-  ARawKey := ARequest.GetCustomHeader('X-Idempotency-Key');
-  if ARawKey <> '' then
-    Result := True;
 end;
 
 class function TZenithIdempotency.GetIdempotencyKey(ARequest: TRequest): string;

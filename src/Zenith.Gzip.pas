@@ -11,7 +11,14 @@ unit Zenith.Gzip;
 interface
 
 uses
-  Classes, SysUtils, zstream;
+  Classes, SysUtils, zstream, Zenith.Env;
+
+const
+  ZENITH_GZIP_DEFAULT_MIN_SIZE = 512;
+
+{ Returns True when Content-Type is compressible and ContentLength >= MinSize }
+function ShouldGzipCompress(const AContentType: string; AContentLength: SizeInt;
+  AMinSize: SizeInt = -1): Boolean;
 
 { Compresses binary data or UTF-8 string into GZIP format (RFC 1952) }
 function GZipCompress(const AData: RawByteString; ALevel: TCompressionLevel = clDefault): RawByteString;
@@ -24,6 +31,58 @@ procedure GZipCompressStream(AInput, AOutput: TStream; ALevel: TCompressionLevel
 procedure GZipDecompressStream(AInput, AOutput: TStream);
 
 implementation
+
+function ShouldGzipCompress(const AContentType: string; AContentLength: SizeInt;
+  AMinSize: SizeInt): Boolean;
+var
+  EffMinSize: SizeInt;
+  Mime: string;
+  SemiPos: SizeInt;
+begin
+  if AMinSize >= 0 then
+    EffMinSize := AMinSize
+  else
+  begin
+    EffMinSize := StrToIntDef(GetEnvVariable('ZENITH_GZIP_MIN_SIZE'), ZENITH_GZIP_DEFAULT_MIN_SIZE);
+    if EffMinSize < 0 then
+      EffMinSize := ZENITH_GZIP_DEFAULT_MIN_SIZE;
+  end;
+
+  if AContentLength < EffMinSize then
+    Exit(False);
+
+  Mime := LowerCase(Trim(AContentType));
+  SemiPos := Pos(';', Mime);
+  if SemiPos > 0 then
+    Mime := Trim(Copy(Mime, 1, SemiPos - 1));
+
+  if Mime = '' then
+    Exit(True);
+
+  { SVG is XML text and compresses well; other images/audio/video/archives do not. }
+  if Mime = 'image/svg+xml' then
+    Exit(True);
+
+  if (Pos('image/', Mime) = 1) or
+     (Pos('video/', Mime) = 1) or
+     (Pos('audio/', Mime) = 1) or
+     (Mime = 'application/zip') or
+     (Mime = 'application/gzip') or
+     (Mime = 'application/x-gzip') or
+     (Mime = 'application/x-rar-compressed') or
+     (Mime = 'application/x-7z-compressed') or
+     (Mime = 'application/pdf') or
+     (Mime = 'application/octet-stream') or
+     (Mime = 'font/woff') or
+     (Mime = 'font/woff2') or
+     (Mime = 'application/font-woff') or
+     (Mime = 'application/font-woff2') or
+     (Mime = 'application/x-font-woff') or
+     (Mime = 'text/event-stream') then
+    Exit(False);
+
+  Result := True;
+end;
 
 var
   CRC32Table: array[0..255] of LongWord;

@@ -1225,7 +1225,7 @@ var
   Idx, SepPos: Integer;
   Line, N, V: string;
 begin
-  if not Assigned(AHeaders) then
+  if (not Assigned(AHeaders)) or (AHeaders.Count = 0) then
     Exit;
   for Idx := AHeaders.Count - 1 downto 0 do
   begin
@@ -1259,11 +1259,11 @@ var
   StreamLen: Int64;
 begin
   // 1. Inbound GZIP Decompression (Content-Encoding: gzip)
-  CE := LowerCase(Trim(ARequest.ContentEncoding));
-  if CE = '' then
-    CE := LowerCase(Trim(ARequest.GetCustomHeader('Content-Encoding')));
+  CE := ARequest.ContentEncoding;
+  if (CE = '') and (ARequest.CustomHeaders.Count > 0) then
+    CE := ARequest.GetCustomHeader('Content-Encoding');
 
-  if (Pos('gzip', CE) > 0) and (Length(ARequest.Content) > 0) then
+  if (CE <> '') and (Pos('gzip', LowerCase(Trim(CE))) > 0) and (Length(ARequest.Content) > 0) then
   begin
     try
       ARequest.Content := GZipDecompress(ARequest.Content);
@@ -1274,7 +1274,7 @@ begin
       begin
         AResponse.Code := 400;
         AResponse.ContentType := 'application/problem+json; charset=utf-8';
-        AResponse.Content := '{"type":"https://tools.ietf.org/html/rfc7807","title":"Bad Request","status":400,"detail":"Falha ao descompactar payload GZIP: ' + E.Message + '"}';
+        AResponse.Content := '{"type":"urn:zenith:problem:invalid-gzip","title":"Bad Request","status":400,"detail":"Falha ao descompactar payload GZIP: ' + E.Message + '"}';
         AResponse.SendContent;
         Exit;
       end;
@@ -1283,17 +1283,17 @@ begin
 
   // 2. Strict Content-Type Validation on Write Methods (POST, PUT, PATCH)
   AMethod := StringToRouteMethod(ARequest.Method);
-  if (AMethod in [rmPost, rmPut, rmPatch]) or SameText(ARequest.Method, 'POST') or SameText(ARequest.Method, 'PUT') or SameText(ARequest.Method, 'PATCH') then
+  if AMethod in [rmPost, rmPut, rmPatch] then
   begin
     CT := Trim(ARequest.ContentType);
-    if CT = '' then
+    if (CT = '') and (ARequest.CustomHeaders.Count > 0) then
       CT := Trim(ARequest.GetCustomHeader('Content-Type'));
 
     P := Pos(';', CT);
     if P > 0 then
       CTBase := LowerCase(Trim(Copy(CT, 1, P - 1)))
     else
-      CTBase := LowerCase(Trim(CT));
+      CTBase := LowerCase(CT);
 
     if CTBase = '' then
     begin
@@ -1320,7 +1320,7 @@ begin
       begin
         AResponse.Code := 400;
         AResponse.ContentType := 'application/problem+json; charset=utf-8';
-        AResponse.Content := '{"type":"https://tools.ietf.org/html/rfc7807","title":"Bad Request","status":400,"detail":"Content-Type não suportado. Formatos aceitos: application/json, application/cbor, application/bson, application/xml, text/csv, application/x-www-form-urlencoded, multipart/form-data."}';
+        AResponse.Content := '{"type":"urn:zenith:problem:unsupported-media-type","title":"Bad Request","status":400,"detail":"Content-Type não suportado. Formatos aceitos: application/json, application/cbor, application/bson, application/xml, text/csv, application/x-www-form-urlencoded, multipart/form-data."}';
         AResponse.SendContent;
         Exit;
       end;
@@ -1331,11 +1331,12 @@ begin
   if not TZenithIdempotency.ProcessBefore(ARequest, AResponse) then
   begin
     // Response short-circuited by middleware (400/409/422 RFC 9457 or cached replay)
-    AE := LowerCase(Trim(ARequest.AcceptEncoding));
-    if AE = '' then
-      AE := LowerCase(Trim(ARequest.GetCustomHeader('Accept-Encoding')));
-    if (Pos('gzip', AE) > 0) and (not AResponse.ContentSent) and (Length(AResponse.Content) > 0) and
-       (Pos('gzip', LowerCase(Trim(AResponse.ContentEncoding))) = 0) then
+    AE := ARequest.AcceptEncoding;
+    if (AE = '') and (ARequest.CustomHeaders.Count > 0) then
+      AE := ARequest.GetCustomHeader('Accept-Encoding');
+    if (AE <> '') and (Pos('gzip', LowerCase(Trim(AE))) > 0) and (not AResponse.ContentSent) and
+       ShouldGzipCompress(AResponse.ContentType, Length(AResponse.Content)) and
+       ((AResponse.ContentEncoding = '') or (Pos('gzip', LowerCase(Trim(AResponse.ContentEncoding))) = 0)) then
     begin
       try
         Compressed := GZipCompress(AResponse.Content);
@@ -1377,12 +1378,12 @@ begin
   TZenithIdempotency.ProcessAfter(ARequest, AResponse);
 
   // 3. Outbound GZIP Compression (Accept-Encoding: gzip)
-  AE := LowerCase(Trim(ARequest.AcceptEncoding));
-  if AE = '' then
-    AE := LowerCase(Trim(ARequest.GetCustomHeader('Accept-Encoding')));
+  AE := ARequest.AcceptEncoding;
+  if (AE = '') and (ARequest.CustomHeaders.Count > 0) then
+    AE := ARequest.GetCustomHeader('Accept-Encoding');
 
-  if (Pos('gzip', AE) > 0) and (not AResponse.ContentSent) and
-     (Pos('gzip', LowerCase(Trim(AResponse.ContentEncoding))) = 0) then
+  if (AE <> '') and (Pos('gzip', LowerCase(Trim(AE))) > 0) and (not AResponse.ContentSent) and
+     ((AResponse.ContentEncoding = '') or (Pos('gzip', LowerCase(Trim(AResponse.ContentEncoding))) = 0)) then
   begin
     RawContent := '';
     if Assigned(AResponse.ContentStream) then
@@ -1398,7 +1399,7 @@ begin
     else
       RawContent := AResponse.Content;
 
-    if Length(RawContent) > 0 then
+    if ShouldGzipCompress(AResponse.ContentType, Length(RawContent)) then
     begin
       try
         Compressed := GZipCompress(RawContent);
@@ -1424,7 +1425,7 @@ begin
   // or migrate Content-Encoding from CustomHeaders to native ContentEncoding to prevent duplicate HTTP headers.
   if AResponse.ContentEncoding <> '' then
     ClearCustomHeaderCaseInsensitive(AResponse.CustomHeaders, 'Content-Encoding')
-  else if AResponse.GetCustomHeader('Content-Encoding') <> '' then
+  else if (AResponse.CustomHeaders.Count > 0) and (AResponse.GetCustomHeader('Content-Encoding') <> '') then
   begin
     AResponse.ContentEncoding := AResponse.GetCustomHeader('Content-Encoding');
     ClearCustomHeaderCaseInsensitive(AResponse.CustomHeaders, 'Content-Encoding');

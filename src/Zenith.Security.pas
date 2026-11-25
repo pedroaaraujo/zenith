@@ -201,7 +201,7 @@ begin
     Exit;
 
   try
-    Payload := TJWT.ValidadeToken(Token);
+    Payload := TJWT.ValidateToken(Token);
     if Payload = nil then
       Exit;
 

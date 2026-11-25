@@ -8,10 +8,10 @@
 [![FreePascal](https://img.shields.io/badge/FPC-%3E%3D%203.2.2-green.svg)](https://www.freepascal.org/)
 [![OpenAPI](https://img.shields.io/badge/OpenAPI-3.1-brightgreen.svg)](https://swagger.io/specification/)
 [![Formats](https://img.shields.io/badge/Formats-JSON%20%7C%20CBOR%20%7C%20BSON%20%7C%20XML%20%7C%20CSV-orange.svg)](https://github.com/pedroaaraujo/zenith)
-[![RFC 7807](https://img.shields.io/badge/RFC-7807%20Compliant-orange.svg)](https://datatracker.ietf.org/doc/html/rfc7807)
+[![RFC 9457](https://img.shields.io/badge/RFC-9457%20Compliant-orange.svg)](https://datatracker.ietf.org/doc/html/rfc9457)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-**Zenith** is a high-performance web framework for **Free Pascal / Lazarus (FPC)**. Engineered to deliver an agile and contemporary backend development experience, Zenith unifies interactive **OpenAPI 3.1 / Swagger UI** documentation, **Multi-DBMS Micro-ORM** data modeling, **Multi-Format Serialization** (JSON, CBOR, BSON, XML, CSV), **JWT / Basic** authentication, structured logging, and standardized **RFC 7807** problem detail error handling.
+**Zenith** is a high-performance web framework for **Free Pascal / Lazarus (FPC)**. Engineered to deliver an agile and contemporary backend development experience, Zenith unifies interactive **OpenAPI 3.1 / Swagger UI** documentation, **Multi-DBMS Micro-ORM** data modeling, **Multi-Format Serialization** (JSON, CBOR, BSON, XML, CSV), **JWT / Basic** authentication, structured logging, and standardized **RFC 9457** problem detail error handling.
 
 ---
 
@@ -25,7 +25,7 @@
 - ⚡ **Direct Typed ORM Binding**: Pre-allocated column mapping with `TColumnBindingMap`, 1:N Eager Loading via `Include`, and thread-safe static reflection cache `TRTTICache`.
 - 📖 **OpenAPI 3.1 & Swagger UI**: Native integration with [Swagger4Laz](src/swagger4laz), serving interactive API documentation with centralized schema registration in `components.schemas` and canonical `$ref` references at `/docs`.
 - 🧩 **Modeling, Validation & ORM with DeltaModel**: Direct integration with [DeltaModel](src/deltamodel) for strongly typed models, fluent validation rules, and multi-database persistence (PostgreSQL, MariaDB/MySQL, SQLite, Firebird, MSSQL, Oracle).
-- 🛡️ **Standardized Error Handling (RFC 7807)**: Detailed, structured JSON problem responses adhering to the *Problem Details for HTTP APIs* specification.
+- 🛡️ **Standardized Error Handling (RFC 9457)**: Detailed, structured JSON problem responses adhering to the *Problem Details for HTTP APIs* specification.
 - 🔐 **Built-in Authentication**:
   - Full **JWT (JSON Web Token)** support with creation, HMAC-SHA256 signature, expiration, and automated validation.
   - Standard **HTTP Basic** authentication.
@@ -43,22 +43,24 @@ Zenith/
 ├── src/
 │   ├── Zenith.App.pas         # Application singleton (TZenithApp) and runtime lifecycle
 │   ├── Zenith.Crud.pas        # Automated generic REST CRUD router and controller
-│   ├── Zenith.Messages.pas    # Error messages and RFC 7807 internationalization (i18n)
+│   ├── Zenith.Messages.pas    # Error messages and RFC 9457 internationalization (i18n)
 │   ├── Zenith.Core.pas        # Middleware pipeline and centralized exception dispatcher
 │   ├── Zenith.Constants.pas   # Canonical MIME types, status codes, and HTTP headers
-│   ├── Zenith.Consts.pas      # HTTP constants, status codes, and MIME types
-│   ├── Zenith.Types.pas       # Base types and RFC 7807 JSON formatter (TJsonError)
+│   ├── Zenith.Consts.pas      # Legacy HTTP constants kept for compatibility (prefer Zenith.Constants)
+│   ├── Zenith.Types.pas       # Base types and RFC 9457 JSON formatter (TJsonError)
 │   ├── Zenith.Exceptions.pas  # Semantic HTTP exception hierarchy
 │   ├── Zenith.Auth.JWT.pas    # JWT token generation, signature, and verification
 │   ├── Zenith.Auth.Basic.pas  # HTTP Basic authentication provider
-│   ├── Zenith.Hash.pas        # Cryptographic utilities (HMAC-SHA256, SHA256, MD5)
+│   ├── Zenith.Hash.pas        # Cryptographic utilities (HMAC-SHA256, SHA256 via fpsha256)
 │   ├── Zenith.Env.pas         # Configuration loader (.env / OS environment)
-│   ├── Zenith.Log.pas         # Thread-safe console and file logger
+│   ├── Zenith.Log.pas         # Thread-safe console and async file logger (text / JSON)
 │   ├── swagger4laz/           # Submodule: Swagger UI and OpenAPI 3.1
 │   └── deltamodel/            # Submodule: Data Modeling, Multi-Format Codecs, and Generics Micro-ORM
 └── demo/
     ├── 00-todolist/           # Minimal REST API demo with SQLite and TZenithCrud
-    └── 01-order-management/   # Enterprise RMS Starter with multi-format endpoints and Swagger UI
+    ├── 01-order-management/   # Enterprise RMS Starter with multi-format endpoints and Swagger UI
+    ├── 03-websocket/          # WebSocket demo with RFC 6455, rooms/topics, and CWT/JWT auth
+    └── 04-rms-starter/        # Extended RMS Starter with SQLite, RBAC, and multi-format CRUD
 ```
 
 ---
@@ -307,9 +309,9 @@ Zenith streams raw bytes directly into contiguous `RawByteString` buffers withou
 
 ---
 
-## 🛡️ Exception Handling & RFC 7807
+## 🛡️ Exception Handling & RFC 9457
 
-When a semantic exception is raised in any handler, Zenith intercepts it and returns a standardized **RFC 7807** Problem Details payload:
+When a semantic exception is raised in any handler, Zenith intercepts it and returns a standardized **RFC 9457** Problem Details payload:
 
 ```json
 {
@@ -392,7 +394,9 @@ Resolution order: `SetEnvVariable` > OS environment > `.env` (read once at start
 | `ZENITH_JWT_ISSUER` / `ZENITH_JWT_AUDIENCE` | *(empty)* | When set, tokens are issued with `iss`/`aud` and validation requires them to match. |
 | `ZENITH_WS_ALLOWED_ORIGINS` | *(empty)* | WebSocket handshakes with an `Origin` header must be same-origin (`Host`) or listed here; `*` allows any. Clients without `Origin` are accepted. |
 | `ZENITH_LOG_DEBUG` | `N` | Enables the `DEBUG` log level. |
-| `ZENITH_LOGFILE` | *(empty)* | Also appends log lines to this file. |
+| `ZENITH_LOG_FORMAT` | `text` | Log output format: `text` or `json` (structured JSON line). |
+| `ZENITH_LOGFILE` | *(empty)* | Also writes log lines asynchronously to this file. |
+| `ZENITH_GZIP_MIN_SIZE` | `512` | Minimum response size in bytes before applying GZIP compression. |
 
 > **Security notes:** `TZenithCrud` validates `sort`/`order_by` against the model fields (`?sort=-id,name` or `?sort=name desc`); anything else returns `400`. Use `ZENITH_JWT_SECRET` with at least 32 bytes (RFC 7518); shorter secrets log a warning. Create the connection pool **before** registering `TZenithCrud` routes (the constructor rejects a `nil` pool).
 
@@ -432,6 +436,8 @@ lazbuild -B -dFCGI myapi.lpi
 
 - [`demo/00-todolist`](demo/00-todolist): Minimal SQLite REST API with `Zenith.App`, `TZenithCrud`, and Swagger UI.
 - [`demo/01-order-management`](demo/01-order-management): Complete RMS Starter REST API covering Products, Customers, Orders, 1:N relations (`Include`), RBAC, multi-format responses, and interactive OpenAPI documentation.
+- [`demo/03-websocket`](demo/03-websocket): Real-time WebSocket telemetry server with RFC 6455 framing, permessage-deflate, topic broadcasting, and CWT/JWT authentication.
+- [`demo/04-rms-starter`](demo/04-rms-starter): Full-featured RMS Starter with SQLite persistence, RBAC policies, multi-format codecs, and Swagger UI.
 
 ---
 

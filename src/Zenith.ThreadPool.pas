@@ -127,10 +127,10 @@ begin
 
   CPUs := GetCPUCount;
   if CPUs < 1 then CPUs := 1;
-  // For I/O-bound HTTP servers: 4 workers per core, floor of 16 and cap of 128
+  // Balanced worker count: avoids excessive per-thread RTL heap arenas while saturating I/O
   Result := CPUs * 4;
-  if Result < 16 then Result := 16;
-  if Result > 128 then Result := 128;
+  if Result < 4 then Result := 4;
+  if Result > 32 then Result := 32;
 end;
 
 { TZenithConnectionQueue }

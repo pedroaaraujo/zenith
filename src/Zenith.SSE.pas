@@ -115,13 +115,15 @@ type
     FTopicsLock: TCriticalSection;
     FTopics: TStringList;
     FStopEvent: TEvent;
+    FDispatchLock: TCriticalSection;
+    FDispatchIdleEvent: TEvent;
     FActiveDispatches: LongInt;
     FHeartbeatsSent: Int64;
     class var FNextClientSeq: Int64;
     class function GenerateClientID: string;
   protected
-    procedure AcquireDispatch; inline;
-    procedure ReleaseDispatch; inline;
+    procedure AcquireDispatch;
+    procedure ReleaseDispatch;
     procedure WaitForDispatches;
   public
     constructor Create(ARequest: TRequest; AResponse: TResponse;
@@ -785,6 +787,8 @@ begin
   FTopics.Duplicates := dupIgnore;
   FTopics.CaseSensitive := False;
   FStopEvent := TEvent.Create(nil, True, False, '');
+  FDispatchLock := TCriticalSection.Create;
+  FDispatchIdleEvent := TEvent.Create(nil, True, True, '');
   FActiveDispatches := 0;
   FHeartbeatsSent := 0;
 
@@ -813,6 +817,8 @@ begin
   FTopics.Duplicates := dupIgnore;
   FTopics.CaseSensitive := False;
   FStopEvent := TEvent.Create(nil, True, False, '');
+  FDispatchLock := TCriticalSection.Create;
+  FDispatchIdleEvent := TEvent.Create(nil, True, True, '');
   FActiveDispatches := 0;
   FHeartbeatsSent := 0;
 end;
@@ -821,6 +827,8 @@ destructor TZSSEConnection.Destroy;
 begin
   Close;
   WaitForDispatches;
+  FreeAndNil(FDispatchIdleEvent);
+  FreeAndNil(FDispatchLock);
   FreeAndNil(FStopEvent);
   FreeAndNil(FTopics);
   FreeAndNil(FTopicsLock);
@@ -829,18 +837,44 @@ end;
 
 procedure TZSSEConnection.AcquireDispatch;
 begin
-  InterLockedIncrement(FActiveDispatches);
+  FDispatchLock.Enter;
+  try
+    Inc(FActiveDispatches);
+    if FActiveDispatches = 1 then
+      FDispatchIdleEvent.ResetEvent;
+  finally
+    FDispatchLock.Leave;
+  end;
 end;
 
 procedure TZSSEConnection.ReleaseDispatch;
 begin
-  InterLockedDecrement(FActiveDispatches);
+  FDispatchLock.Enter;
+  try
+    Dec(FActiveDispatches);
+    if FActiveDispatches <= 0 then
+    begin
+      FActiveDispatches := 0;
+      FDispatchIdleEvent.SetEvent;
+    end;
+  finally
+    FDispatchLock.Leave;
+  end;
 end;
 
 procedure TZSSEConnection.WaitForDispatches;
 begin
-  while InterLockedCompareExchange(FActiveDispatches, 0, 0) > 0 do
-    Sleep(1);
+  while True do
+  begin
+    FDispatchLock.Enter;
+    try
+      if FActiveDispatches <= 0 then
+        Exit;
+    finally
+      FDispatchLock.Leave;
+    end;
+    FDispatchIdleEvent.WaitFor(INFINITE);
+  end;
 end;
 
 procedure TZSSEConnection.AddTopic(const ATopic: string);

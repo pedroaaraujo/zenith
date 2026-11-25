@@ -52,7 +52,8 @@ type
   ECWTAlgorithmNotSupported = class(ECWTException);
 
   { Custom Claims Dictionary }
-  TCWTDictionay = specialize TFPGMap<string, Variant>;
+  TCWTDictionary = specialize TFPGMap<string, Variant>;
+  TCWTDictionay = TCWTDictionary deprecated 'Use TCWTDictionary';
 
   { TCWTPayload }
   TCWTPayload = class
@@ -69,7 +70,7 @@ type
     Fent_id: Int64;
     FRoles: TStringList;
     FPermissions: TStringList;
-    FCustomValues: TCWTDictionay;
+    FCustomValues: TCWTDictionary;
 
     function GetExp: Int64;
     function GetIat: Int64;
@@ -114,7 +115,8 @@ type
     class procedure AddFallbackSecret(const ASecret: string);
     class procedure ClearFallbackSecrets;
     class function GetSecret: string;
-    class procedure ObterTodosSegredosValidos(AList: TStrings);
+    class procedure GetAllValidSecrets(AList: TStrings);
+    class procedure ObterTodosSegredosValidos(AList: TStrings); deprecated 'Use GetAllValidSecrets';
 
     { Generation }
     class function GenerateToken(Payload: TCWTPayload): TBytes; overload;
@@ -1121,7 +1123,7 @@ begin
   FRoles.CaseSensitive := False;
   FPermissions := TStringList.Create;
   FPermissions.CaseSensitive := False;
-  FCustomValues := TCWTDictionay.Create;
+  FCustomValues := TCWTDictionary.Create;
 end;
 
 procedure TCWTPayload.BeforeDestruction;
@@ -1175,7 +1177,7 @@ begin
     Result := Trim(RawEnv);
 end;
 
-class procedure TCWT.ObterTodosSegredosValidos(AList: TStrings);
+class procedure TCWT.GetAllValidSecrets(AList: TStrings);
 var
   RawEnv, S: string;
   P: SizeInt;
@@ -1212,6 +1214,11 @@ begin
       if (not S.IsEmpty) and (AList.IndexOf(S) < 0) then
         AList.Add(S);
   end;
+end;
+
+class procedure TCWT.ObterTodosSegredosValidos(AList: TStrings);
+begin
+  GetAllValidSecrets(AList);
 end;
 
 function EncodeCwtPayloadBytes(Payload: TCWTPayload): RawByteString;
@@ -1521,7 +1528,7 @@ begin
   SigMatches := False;
   SecretList := TStringList.Create;
   try
-    ObterTodosSegredosValidos(SecretList);
+    GetAllValidSecrets(SecretList);
     for SecretKey in SecretList do
     begin
       ComputedSig := RawByteString(HMACSHA256(SecretKey, String(SigStructureBytes)));
@@ -1799,7 +1806,7 @@ begin
   if FAllowJWTFallback and (Pos('.', Token) > 0) then
   begin
     try
-      Payload := TJWT.ValidadeToken(Token);
+      Payload := TJWT.ValidateToken(Token);
       if Payload = nil then Exit;
       try
         PayloadJson := GetJSON(Payload.ToJson) as TJSONObject;

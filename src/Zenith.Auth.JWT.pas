@@ -10,7 +10,8 @@ uses
 
 type
 
-  TDictionay = specialize TFPGMap<string, Variant>;
+  TDictionary = specialize TFPGMap<string, Variant>;
+  TDictionay = TDictionary deprecated 'Use TDictionary';
 
   { TPayLoad }
 
@@ -18,7 +19,7 @@ type
   private
     Fexp: Int64;
     fiat: Int64;
-    Values: TDictionay;
+    Values: TDictionary;
     function GetCustomValues(const Name: string): Variant;
     function Getexp: Int64;
     function Getiat: Int64;
@@ -46,7 +47,8 @@ type
     class function GenerateToken(Payload: TPayLoad): string;
     class function GenerateJson(Payload: TPayLoad): RawByteString;
     class function OpenAPISchema: string;
-    class function ValidadeToken(Token: string; AllowExpiredWithinGrace: Boolean = False; MaxGraceSeconds: Int64 = 604800): TPayLoad;
+    class function ValidateToken(Token: string; AllowExpiredWithinGrace: Boolean = False; MaxGraceSeconds: Int64 = 604800): TPayLoad;
+    class function ValidadeToken(Token: string; AllowExpiredWithinGrace: Boolean = False; MaxGraceSeconds: Int64 = 604800): TPayLoad; deprecated 'Use ValidateToken';
   end;
 
 
@@ -70,6 +72,9 @@ type
 
 implementation
 
+uses
+  SyncObjs;
+
 const
   JWT_ENV_VARIABLE = 'ZENITH_JWT_SECRET';
   JWT_EXPIRATION_VARIABLE = 'ZENITH_JWT_EXPIRATION';
@@ -82,6 +87,12 @@ var
   GPrimaryCustomSecret: string = '';
   GFallbackCustomSecrets: TStringList = nil;
   GWeakSecretWarned: Boolean = False;
+  GSecretsLock: TCriticalSection = nil;
+  GCachedSecrets: TStringArray = nil;
+  GCachedEnvGen: UInt64 = 0;
+  GCachedLocalGen: UInt64 = 0;
+  GLocalSecretsGen: UInt64 = 1;
+  GSecretsCacheValid: Boolean = False;
 
 procedure WarnIfWeakSecret(const ASecret: string);
 begin
@@ -108,17 +119,50 @@ begin
         Exit(True);
 end;
 
+procedure InvalidateSecretsCache;
+begin
+  if Assigned(GSecretsLock) then
+    GSecretsLock.Acquire;
+  try
+    Inc(GLocalSecretsGen);
+    GSecretsCacheValid := False;
+  finally
+    if Assigned(GSecretsLock) then
+      GSecretsLock.Release;
+  end;
+end;
+
 class procedure TJWT.SetSecret(const ASecret: string);
 begin
-  GPrimaryCustomSecret := Trim(ASecret);
+  if Assigned(GSecretsLock) then
+    GSecretsLock.Acquire;
+  try
+    GPrimaryCustomSecret := Trim(ASecret);
+    Inc(GLocalSecretsGen);
+    GSecretsCacheValid := False;
+  finally
+    if Assigned(GSecretsLock) then
+      GSecretsLock.Release;
+  end;
 end;
 
 class procedure TJWT.AddFallbackSecret(const ASecret: string);
 begin
-  if not Assigned(GFallbackCustomSecrets) then
-    GFallbackCustomSecrets := TStringList.Create;
-  if (Trim(ASecret) <> '') and (GFallbackCustomSecrets.IndexOf(Trim(ASecret)) < 0) then
-    GFallbackCustomSecrets.Add(Trim(ASecret));
+  if Assigned(GSecretsLock) then
+    GSecretsLock.Acquire;
+  try
+    if not Assigned(GFallbackCustomSecrets) then
+      GFallbackCustomSecrets := TStringList.Create;
+    if (Trim(ASecret) <> '') and (GFallbackCustomSecrets.IndexOf(Trim(ASecret)) < 0) then
+    begin
+      GFallbackCustomSecrets.Add(Trim(ASecret));
+      Inc(GLocalSecretsGen);
+      GSecretsCacheValid := False;
+    end;
+  finally
+    if Assigned(GSecretsLock) then
+      GSecretsLock.Release;
+  end;
 end;
 
 function JwtSecret: string;
@@ -140,42 +184,81 @@ begin
     Result := Trim(RawEnv);
 end;
 
-procedure ObterTodosSegredosValidos(AList: TStrings);
+procedure AppendUniqueSecret(var AArr: TStringArray; const ASecret: string);
 var
+  I: Integer;
+begin
+  if ASecret = '' then
+    Exit;
+  for I := 0 to High(AArr) do
+    if AArr[I] = ASecret then
+      Exit;
+  SetLength(AArr, Length(AArr) + 1);
+  AArr[High(AArr)] := ASecret;
+end;
+
+function GetCachedSecrets: TStringArray;
+var
+  CurEnvGen: UInt64;
   RawEnv, S: string;
   P: SizeInt;
+  Built: TStringArray;
+begin
+  CurEnvGen := Zenith.Env.GetEnvGeneration;
+  GSecretsLock.Acquire;
+  try
+    if GSecretsCacheValid and (GCachedEnvGen = CurEnvGen) and (GCachedLocalGen = GLocalSecretsGen) then
+      Exit(Copy(GCachedSecrets));
+
+    Built := nil;
+    if not GPrimaryCustomSecret.IsEmpty then
+      AppendUniqueSecret(Built, GPrimaryCustomSecret);
+
+    RawEnv := Zenith.Env.GetEnvVariable(JWT_ENV_VARIABLE);
+    while not RawEnv.IsEmpty do
+    begin
+      P := Pos(',', RawEnv);
+      if P > 0 then
+      begin
+        S := Trim(Copy(RawEnv, 1, P - 1));
+        Delete(RawEnv, 1, P);
+      end
+      else
+      begin
+        S := Trim(RawEnv);
+        RawEnv := '';
+      end;
+      AppendUniqueSecret(Built, S);
+    end;
+
+    if Assigned(GFallbackCustomSecrets) then
+      for S in GFallbackCustomSecrets do
+        AppendUniqueSecret(Built, S);
+
+    GCachedSecrets := Built;
+    GCachedEnvGen := CurEnvGen;
+    GCachedLocalGen := GLocalSecretsGen;
+    GSecretsCacheValid := True;
+    Result := Copy(GCachedSecrets);
+  finally
+    GSecretsLock.Release;
+  end;
+end;
+
+procedure GetAllValidSecrets(AList: TStrings);
+var
+  Secrets: TStringArray;
+  S: string;
 begin
   AList.Clear;
-  if not GPrimaryCustomSecret.IsEmpty then
-    AList.Add(GPrimaryCustomSecret);
+  Secrets := GetCachedSecrets;
+  for S in Secrets do
+    AList.Add(S);
+end;
 
-  RawEnv := Zenith.Env.GetEnvVariable(JWT_ENV_VARIABLE);
-  while not RawEnv.IsEmpty do
-  begin
-    P := Pos(',', RawEnv);
-    if P > 0 then
-    begin
-      S := Trim(Copy(RawEnv, 1, P - 1));
-      Delete(RawEnv, 1, P);
-    end
-    else
-    begin
-      S := Trim(RawEnv);
-      RawEnv := '';
-    end;
-
-    if (not S.IsEmpty) and (AList.IndexOf(S) < 0) then
-      AList.Add(S);
-  end;
-
-  if Assigned(GFallbackCustomSecrets) then
-  begin
-    for S in GFallbackCustomSecrets do
-    begin
-      if (not S.IsEmpty) and (AList.IndexOf(S) < 0) then
-        AList.Add(S);
-    end;
-  end;
+procedure ObterTodosSegredosValidos(AList: TStrings); deprecated 'Use GetAllValidSecrets';
+begin
+  GetAllValidSecrets(AList);
 end;
 
 function ConstantTimeEquals(const A, B: string): Boolean;
@@ -316,7 +399,7 @@ end;
 procedure TPayLoad.AfterConstruction;
 begin
   inherited AfterConstruction;
-  Values := TDictionay.Create;
+  Values := TDictionary.Create;
 end;
 
 procedure TPayLoad.BeforeDestruction;
@@ -391,7 +474,7 @@ begin
     '}';
 end;
 
-class function TJWT.ValidadeToken(Token: string; AllowExpiredWithinGrace: Boolean = False; MaxGraceSeconds: Int64 = 604800): TPayLoad;
+class function TJWT.ValidateToken(Token: string; AllowExpiredWithinGrace: Boolean = False; MaxGraceSeconds: Int64 = 604800): TPayLoad;
 var
   HeaderEncoded: string;
   PayLoadEncoded: string;
@@ -405,7 +488,7 @@ var
   Key: string;
   FirstDot, SecondDot: SizeInt;
   SignatureMatches: Boolean;
-  SecretList: TStringList;
+  Secrets: TStringArray;
 begin
   Result := nil;
   try
@@ -423,22 +506,17 @@ begin
     PayLoadEncoded := Copy(Token, FirstDot + 1, SecondDot - FirstDot - 1);
     SignatureEncoded := Copy(Token, SecondDot + 1, MaxInt);
 
-    /// Check signature across primary and rotated/fallback keys
+    /// Check signature across cached primary and rotated/fallback keys
     SignatureMatches := False;
-    SecretList := TStringList.Create;
-    try
-      ObterTodosSegredosValidos(SecretList);
-      for Key in SecretList do
+    Secrets := GetCachedSecrets;
+    for Key in Secrets do
+    begin
+      SignatureDecoded := EncodeStringBase64UrlSafe(HMACSHA256(Key, HeaderEncoded + '.' + PayLoadEncoded));
+      if ConstantTimeEquals(SignatureDecoded, SignatureEncoded) then
       begin
-        SignatureDecoded := EncodeStringBase64UrlSafe(HMACSHA256(Key, HeaderEncoded + '.' + PayLoadEncoded));
-        if ConstantTimeEquals(SignatureDecoded, SignatureEncoded) then
-        begin
-          SignatureMatches := True;
-          Break;
-        end;
+        SignatureMatches := True;
+        Break;
       end;
-    finally
-      SecretList.Free;
     end;
 
     if not SignatureMatches then
@@ -505,6 +583,11 @@ begin
   end;
 end;
 
+class function TJWT.ValidadeToken(Token: string; AllowExpiredWithinGrace: Boolean = False; MaxGraceSeconds: Int64 = 604800): TPayLoad;
+begin
+  Result := ValidateToken(Token, AllowExpiredWithinGrace, MaxGraceSeconds);
+end;
+
 { TJWTAuthentication }
 
 procedure TJWTAuthentication.SetPayload(AValue: TPayLoad);
@@ -518,7 +601,7 @@ var
   Exp, ANow: TDateTime;
 begin
   FreeAndNil(FPayload);
-  FPayload := TJWT.ValidadeToken(FAuth, FAllowGracePeriod, FMaxGraceSeconds);
+  FPayload := TJWT.ValidateToken(FAuth, FAllowGracePeriod, FMaxGraceSeconds);
 
   if FPayload = nil then
   begin
@@ -553,8 +636,12 @@ begin
   inherited Destroy;
 end;
 
+initialization
+  GSecretsLock := TCriticalSection.Create;
+
 finalization
   if Assigned(GFallbackCustomSecrets) then
     FreeAndNil(GFallbackCustomSecrets);
+  FreeAndNil(GSecretsLock);
 
 end.

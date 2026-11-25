@@ -21,4 +21,4 @@ Projeto Free Pascal/Lazarus. Fontes principais em `src`, exemplos em `demo`.
 - Rotinas chamadas por métodos genéricos precisam estar na seção `interface`.
 - O pool do DeltaModel faz rollback ao devolver a conexão: toda escrita feita
   com `IDeltaPooledEngine` precisa de `Commit` explícito.
-- Testes: `tests/src/test_security_runner.lpr` e `tests/src/test_sse_runner.lpr`.
+- Testes: `tests/src/test_security_runner.lpr`, `tests/src/test_sse_runner.lpr` e `tests/src/test_zenith_runner.lpr`.

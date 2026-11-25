@@ -16,6 +16,7 @@ function GetEnvVariable(const VarName: string; const DefaultValue: string = ''):
 function GetEnvBool(const VarName: string; const DefaultValue: Boolean = False): Boolean;
 procedure SetEnvVariable(const VarName, Value: string);
 procedure ReloadEnvFile(const AFileName: string = '');
+function GetEnvGeneration: UInt64;
 
 implementation
 
@@ -33,6 +34,17 @@ var
   GLock: TCriticalSection = nil;
   GLocalEnv: TStringList = nil;
   GFileEnv: TStringList = nil;
+  GEnvGeneration: UInt64 = 1;
+
+function GetEnvGeneration: UInt64;
+begin
+  GLock.Acquire;
+  try
+    Result := GEnvGeneration;
+  finally
+    GLock.Release;
+  end;
+end;
 
 function ParseEnvLine(const ALine: string; out AName, AValue: string): Boolean;
 var
@@ -100,6 +112,7 @@ begin
   try
     GFileEnv.Free;
     GFileEnv := Parsed;
+    Inc(GEnvGeneration);
   finally
     GLock.Release;
   end;
@@ -157,6 +170,7 @@ begin
     if not Assigned(GLocalEnv) then
       GLocalEnv := TStringList.Create;
     GLocalEnv.Values[VarName] := Value;
+    Inc(GEnvGeneration);
   finally
     GLock.Release;
   end;
