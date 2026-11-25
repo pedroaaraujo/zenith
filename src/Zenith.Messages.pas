@@ -49,6 +49,7 @@ function DetailUnprocessableEntity: string;
 
 // Generic CRUD router messages and Swagger descriptions (TASK #1230 & i18n)
 function MsgCrudInvalidId: string;
+function MsgCrudInvalidSort(const AField: string): string;
 function MsgCrudInvalidJson: string;
 function MsgCrudCouldNotInsert: string;
 function MsgCrudCouldNotUpdate: string;
@@ -234,9 +235,15 @@ const
   );
 
   STR_CRUD_PARAM_SORT: array[TZenithLocale] of string = (
-    'Field to order by',
-    'Campo para ordenação',
-    'Campo para ordenar'
+    'Comma-separated model fields; prefix with "-" or suffix with " desc" for descending order',
+    'Campos do modelo separados por vírgula; prefixe com "-" ou use " desc" para ordem decrescente',
+    'Campos del modelo separados por coma; anteponga "-" o use " desc" para orden descendente'
+  );
+
+  STR_CRUD_INVALID_SORT: array[TZenithLocale] of string = (
+    'Invalid sort field: "%s".',
+    'Campo de ordenação inválido: "%s".',
+    'Campo de ordenación no válido: "%s".'
   );
 
   STR_CRUD_RESPONSE_LIST_OK: array[TZenithLocale] of string = (
@@ -442,6 +449,11 @@ end;
 function MsgCrudInvalidId: string;
 begin
   Result := STR_CRUD_INVALID_ID[GCurrentLocale];
+end;
+
+function MsgCrudInvalidSort(const AField: string): string;
+begin
+  Result := Format(STR_CRUD_INVALID_SORT[GCurrentLocale], [AField]);
 end;
 
 function MsgCrudInvalidJson: string;

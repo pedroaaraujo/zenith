@@ -5,7 +5,7 @@ unit Zenith.Auth.Basic;
 interface
 
 uses
-  Classes, SysUtils, base64;
+  Classes, SysUtils, base64, Zenith.Exceptions;
 
 type
   { TBasicAuthorization }
@@ -28,26 +28,33 @@ implementation
 
 procedure TBasicAuthorization.Extract;
 var
-  SL: TStringList;
+  Decoded: string;
+  P: SizeInt;
 begin
+  FUser := '';
+  FPassword := '';
   if FAuth.IsEmpty then
     Exit;
 
-  SL := TStringList.Create;
+  { RFC 7617: user-id não contém ":", mas a senha pode conter. Separar
+    somente no primeiro ":" e rejeitar credenciais sem separador. }
   try
-    SL.Delimiter := ':';
-    SL.StrictDelimiter := True;
-    SL.DelimitedText := DecodeStringBase64(FAuth);
-    FUser := Sl.Strings[0];
-    FPassword := Sl.Strings[1];
-  finally
-    SL.Free;
+    Decoded := DecodeStringBase64(FAuth, True);
+  except
+    raise EUnauthorized.Create('Invalid Basic credentials');
   end;
+  P := Pos(':', Decoded);
+  if P = 0 then
+    raise EUnauthorized.Create('Invalid Basic credentials');
+  FUser := Copy(Decoded, 1, P - 1);
+  FPassword := Copy(Decoded, P + 1, MaxInt);
 end;
 
 constructor TBasicAuthorization.Create(Auth: string);
 begin
-  FAuth := Auth.Replace('Basic ', EmptyStr, [rfIgnoreCase]);
+  FAuth := Trim(Auth);
+  if FAuth.StartsWith('Basic ', True) then
+    FAuth := Trim(Copy(FAuth, 7, MaxInt));
   Extract;
 end;
 

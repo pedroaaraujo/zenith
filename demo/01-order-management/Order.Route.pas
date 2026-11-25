@@ -520,7 +520,4 @@ begin
     .Produces(HTTP_STATUS_OK, 'TSaleOrder', DOC_RESP_ORDER_CANCELLED);
 end;
 
-initialization
-  RegisterOrderDemoRoutes;
-
 end.

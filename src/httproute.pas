@@ -423,6 +423,7 @@ var
   Seg: string;
   Count: Integer;
 begin
+  Result := nil;
   SetLength(Result, 8);
   Count := 0;
   Len := Length(APath);

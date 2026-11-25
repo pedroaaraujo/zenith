@@ -24,6 +24,8 @@ begin
   WriteLn('================================================================================');
   WriteLn('[Init] Inicializando banco de dados SQLite e catálogo de demonstração...');
   InitializeOrderStore;
+  { As rotas CRUD capturam o pool: registrar somente após criá-lo. }
+  RegisterOrderDemoRoutes;
 
   WriteLn('[Init] Swagger UI disponível em: http://localhost:' + IntToStr(LPort) + '/docs');
   WriteLn('[Init] OpenAPI spec em: http://localhost:' + IntToStr(LPort) + '/openapi.json');

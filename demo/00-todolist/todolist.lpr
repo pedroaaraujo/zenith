@@ -12,6 +12,8 @@ uses
 
 begin
   InitializeTodoStore;
+  { As rotas CRUD capturam o pool: registrar somente após criá-lo. }
+  TTodoRouter.Register;
   ZenithApp
     .SetTitle('ToDo List')
     .Run;

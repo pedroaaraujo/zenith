@@ -30,6 +30,7 @@ type
 
     function ResolveSecurity(ARequest: TRequest): TZSecurityContext;
     function ParseId(ARequest: TRequest): Int64;
+    function SanitizeSort(const ARawSort: string): string;
     procedure CheckAuthorization(AAction: TZCrudAction; const ASecurity: TZSecurityContext; ARequest: TRequest);
 
     procedure ExecuteBeforeQuery(AAction: TZCrudAction; const ASecurity: TZSecurityContext; ARequest: TRequest; AQuery: TDeltaQuery<T>);
@@ -62,16 +63,95 @@ type
     procedure Register;
   end;
 
+const
+  ZENITH_CRUD_DEFAULT_MAX_PAGE_SIZE = 100;
+
+{ Valida uma cláusula de ordenação vinda do cliente contra os campos persistidos
+  do modelo. Aceita "campo", "-campo", "campo desc", "campo:asc", separados por
+  vírgula, e devolve SQL apenas com nomes de coluna conhecidos. Levanta
+  EBadRequest para qualquer outra entrada. }
+function ZenithSanitizeSort(const ARawSort: string; AMeta: TModelMetadata): string;
+
+{ Limite máximo de itens por página (ZENITH_CRUD_MAX_PAGE_SIZE, padrão 100). }
+function ZenithCrudMaxPageSize: Integer;
+
 implementation
 
 uses
-  DeltaSerialization;
+  DeltaSerialization, Zenith.Env;
+
+function ZenithCrudMaxPageSize: Integer;
+begin
+  Result := StrToIntDef(GetEnvVariable('ZENITH_CRUD_MAX_PAGE_SIZE', ''), ZENITH_CRUD_DEFAULT_MAX_PAGE_SIZE);
+  if Result <= 0 then
+    Result := ZENITH_CRUD_DEFAULT_MAX_PAGE_SIZE;
+end;
+
+function ZenithSanitizeSort(const ARawSort: string; AMeta: TModelMetadata): string;
+var
+  Parts: TStringArray;
+  Item, FieldPart, Direction: string;
+  Meta: PDeltaFieldMeta;
+  P: SizeInt;
+  I: Integer;
+begin
+  Result := '';
+  if Trim(ARawSort) = '' then
+    Exit;
+  if AMeta = nil then
+    raise EBadRequest.Create(MsgCrudInvalidSort(ARawSort));
+
+  Parts := ARawSort.Split([',']);
+  for I := 0 to High(Parts) do
+  begin
+    Item := Trim(Parts[I]);
+    if Item = '' then
+      raise EBadRequest.Create(MsgCrudInvalidSort(ARawSort));
+
+    Direction := 'ASC';
+    if Item[1] = '-' then
+    begin
+      Direction := 'DESC';
+      Item := Trim(Copy(Item, 2, MaxInt));
+    end
+    else if Item[1] = '+' then
+      Item := Trim(Copy(Item, 2, MaxInt));
+
+    P := Pos(':', Item);
+    if P = 0 then
+      P := Pos(' ', Item);
+    if P > 0 then
+    begin
+      FieldPart := Trim(Copy(Item, 1, P - 1));
+      if SameText(Trim(Copy(Item, P + 1, MaxInt)), 'desc') then
+        Direction := 'DESC'
+      else if SameText(Trim(Copy(Item, P + 1, MaxInt)), 'asc') then
+        Direction := 'ASC'
+      else
+        raise EBadRequest.Create(MsgCrudInvalidSort(Item));
+    end
+    else
+      FieldPart := Item;
+
+    Meta := AMeta.FindField(FieldPart);
+    if Meta = nil then
+      Meta := AMeta.FindFieldByProp(FieldPart);
+    if (Meta = nil) or Meta^.IsVirtual or (Meta^.FieldName = '') then
+      raise EBadRequest.Create(MsgCrudInvalidSort(FieldPart));
+
+    if Result <> '' then
+      Result := Result + ', ';
+    Result := Result + Meta^.FieldName + ' ' + Direction;
+  end;
+end;
 
 { TZenithCrud<T> }
 
 constructor TZenithCrud<T>.Create(const ABasePath: string; APool: TDeltaConnectionPool);
 begin
   inherited Create;
+  if APool = nil then
+    raise EServerError.Create('TZenithCrud: connection pool is nil; create the pool before registering CRUD routes');
   FPool := APool;
   FBasePath := ABasePath;
   FTag := '';
@@ -267,6 +347,11 @@ begin
   FInstance.DoDeleteItem(ARequest, AResponse);
 end;
 
+function TZenithCrud<T>.SanitizeSort(const ARawSort: string): string;
+begin
+  Result := ZenithSanitizeSort(ARawSort, TRTTICache.GetModelMetadata(T));
+end;
+
 procedure TZenithCrud<T>.DoGetAll(ARequest: TRequest; AResponse: TResponse);
 var
   SecCtx: TZSecurityContext;
@@ -291,10 +376,14 @@ begin
       if PageSz = 0 then
         PageSz := StrToIntDef(ARequest.QueryFields.Values['limit'], 0);
 
+      if PageSz > ZenithCrudMaxPageSize then
+        PageSz := ZenithCrudMaxPageSize;
+
       OrderByClause := ARequest.QueryFields.Values['sort'];
       if OrderByClause.IsEmpty then
         OrderByClause := ARequest.QueryFields.Values['order_by'];
 
+      OrderByClause := SanitizeSort(OrderByClause);
       if not OrderByClause.IsEmpty then
         Query.OrderBy(OrderByClause);
 

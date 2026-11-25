@@ -6,7 +6,7 @@ interface
 
 uses
   Classes, SysUtils, base64, fpjson, StrUtils, DateUtils, fgl,
-  Zenith.Hash, Zenith.Env, Zenith.Exceptions;
+  Zenith.Hash, Zenith.Env, Zenith.Exceptions, Zenith.Log;
 
 type
 
@@ -73,10 +73,40 @@ implementation
 const
   JWT_ENV_VARIABLE = 'ZENITH_JWT_SECRET';
   JWT_EXPIRATION_VARIABLE = 'ZENITH_JWT_EXPIRATION';
+  JWT_ISSUER_VARIABLE = 'ZENITH_JWT_ISSUER';
+  JWT_AUDIENCE_VARIABLE = 'ZENITH_JWT_AUDIENCE';
+  { RFC 7518 §3.2: a chave HS256 deve ter ao menos o tamanho do hash (256 bits). }
+  JWT_MIN_SECRET_LENGTH = 32;
 
 var
   GPrimaryCustomSecret: string = '';
   GFallbackCustomSecrets: TStringList = nil;
+  GWeakSecretWarned: Boolean = False;
+
+procedure WarnIfWeakSecret(const ASecret: string);
+begin
+  if GWeakSecretWarned or (Length(ASecret) >= JWT_MIN_SECRET_LENGTH) then
+    Exit;
+  GWeakSecretWarned := True;
+  if ZenithLogger <> nil then
+    ZenithLogger.Warning(Format('JWT secret has %d bytes; use at least %d bytes for HS256 (RFC 7518).',
+      [Length(ASecret), JWT_MIN_SECRET_LENGTH]));
+end;
+
+function AudienceMatches(AClaim: TJSONData; const AExpected: string): Boolean;
+var
+  I: Integer;
+begin
+  Result := False;
+  if AClaim = nil then
+    Exit;
+  if AClaim.JSONType = jtString then
+    Exit(AClaim.AsString = AExpected);
+  if AClaim.JSONType = jtArray then
+    for I := 0 to AClaim.Count - 1 do
+      if (AClaim.Items[I].JSONType = jtString) and (AClaim.Items[I].AsString = AExpected) then
+        Exit(True);
+end;
 
 class procedure TJWT.SetSecret(const ASecret: string);
 begin
@@ -195,7 +225,9 @@ var
 begin
   if Fexp = 0 then
   begin
-    Minutes := GetEnvVariable(JWT_EXPIRATION_VARIABLE, '1440').ToInteger;
+    Minutes := StrToIntDef(GetEnvVariable(JWT_EXPIRATION_VARIABLE, '1440'), 1440);
+    if Minutes <= 0 then
+      Minutes := 1440;
 
     vIat := UnixToDateTime(Getiat, True);
     vExp := IncMinute(vIat, Minutes);
@@ -228,6 +260,10 @@ begin
   try
     Json.Add('exp', Exp);
     Json.Add('iat', Iat);
+    if (GetEnvVariable(JWT_ISSUER_VARIABLE) <> '') and (Values.IndexOf('iss') < 0) then
+      Json.Add('iss', GetEnvVariable(JWT_ISSUER_VARIABLE));
+    if (GetEnvVariable(JWT_AUDIENCE_VARIABLE) <> '') and (Values.IndexOf('aud') < 0) then
+      Json.Add('aud', GetEnvVariable(JWT_AUDIENCE_VARIABLE));
 
     for I := 0 to Pred(Values.Count) do
     begin
@@ -296,6 +332,7 @@ var
   Body, Key: string;
 begin
   Key := JwtSecret;
+  WarnIfWeakSecret(Key);
 
   Body :=
     EncodeStringBase64UrlSafe('{"alg": "HS256", "typ": "JWT"}')  + '.' +
@@ -436,6 +473,18 @@ begin
       Claim := TJSONObject(PayloadJson).Find('nbf');
       if (Claim <> nil) and (Claim.AsInt64 > DateTimeToUnix(Now, False)) then
         raise Exception.Create('Token is not active');
+
+      { iss/aud só são exigidos quando configurados (RFC 7519 §4.1.1 e §4.1.3). }
+      if GetEnvVariable(JWT_ISSUER_VARIABLE) <> '' then
+      begin
+        Claim := TJSONObject(PayloadJson).Find('iss');
+        if (Claim = nil) or (Claim.JSONType <> jtString) or
+           (Claim.AsString <> GetEnvVariable(JWT_ISSUER_VARIABLE)) then
+          raise Exception.Create('Invalid issuer');
+      end;
+      if GetEnvVariable(JWT_AUDIENCE_VARIABLE) <> '' then
+        if not AudienceMatches(TJSONObject(PayloadJson).Find('aud'), GetEnvVariable(JWT_AUDIENCE_VARIABLE)) then
+          raise Exception.Create('Invalid audience');
 
       Result := TPayLoad.Create;
       Result.FromJson(PayLoadDecoded);

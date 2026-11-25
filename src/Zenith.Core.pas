@@ -120,7 +120,7 @@ begin
   begin
     AResp.Code := StatusInternalServerError;
 
-    if GetEnvVariable('ZENITH_ENABLE_DEBUG_INFO', 'N').Equals('S') then
+    if GetEnvBool('ZENITH_ENABLE_DEBUG_INFO', False) then
     begin
       if Assigned(BackTraceStrFunc) then
         CallStack := CallStack + BackTraceStrFunc(ExceptAddr) + sLineBreak
@@ -171,6 +171,10 @@ begin
     'HTTP %d %s %s from %s',
     [AResp.Code, AReq.Method, RequestPath, AReq.RemoteAddress]
   );
+  { Erros 5xx: registrar classe e mensagem no servidor (nunca no corpo da
+    resposta, que permanece genérico fora do modo de depuração). }
+  if AResp.Code >= 500 then
+    LogLine := LogLine + ' - ' + E.ClassName + ': ' + E.Message;
 
   if ZenithLogger <> nil then
   begin

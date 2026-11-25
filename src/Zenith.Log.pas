@@ -44,8 +44,10 @@ begin
   FLogFilePath := ALogFilePath;
   FIncludeTimestamp := AIncludeTimestamp;
   FLock := TCriticalSection.Create;
-  // Default log levels
-  FLogLevels := [llDebug, llInfo, llWarning, llError, llCritical];
+  // Níveis padrão: Debug só quando ZENITH_LOG_DEBUG=Y
+  FLogLevels := [llInfo, llWarning, llError, llCritical];
+  if SameText(GetEnvironmentVariable('ZENITH_LOG_DEBUG'), 'Y') then
+    Include(FLogLevels, llDebug);
 end;
 
 destructor TZenithLogger.Destroy;
@@ -87,32 +89,39 @@ var
   LogLine: string;
   LogFile: TextFile;
 begin
+  { Filtra o nível e formata fora do lock: só a escrita é serializada. }
+  if not (ALevel in FLogLevels) then
+    Exit;
+
+  if FIncludeTimestamp then
+    LogLine := '[' + GetTimestamp + '] [' + LogLevelToString(ALevel) + '] ' + AMessage
+  else
+    LogLine := '[' + LogLevelToString(ALevel) + '] ' + AMessage;
+
   FLock.Acquire;
   try
-    if not (ALevel in FLogLevels) then
-      Exit;
-
-    if FIncludeTimestamp then
-      LogLine := Format('[%s] [%s] %s', [GetTimestamp, LogLevelToString(ALevel), AMessage])
-    else
-      LogLine := Format('[%s] %s', [LogLevelToString(ALevel), AMessage]);
-
     {$IFDEF WINDOWS}
     Writeln(Utf8ToAnsi(LogLine));
     {$ELSE}
     Writeln(LogLine);
     {$ENDIF}
-    Exit;
 
-    AssignFile(LogFile, FLogFilePath);
-    if FileExists(FLogFilePath) then
-      Append(LogFile)
-    else
-      Rewrite(LogFile);
+    if FLogFilePath = '' then
+      Exit;
+
     try
-      Writeln(LogFile, LogLine);
-    finally
-      CloseFile(LogFile);
+      AssignFile(LogFile, FLogFilePath);
+      if FileExists(FLogFilePath) then
+        Append(LogFile)
+      else
+        Rewrite(LogFile);
+      try
+        Writeln(LogFile, LogLine);
+      finally
+        CloseFile(LogFile);
+      end;
+    except
+      { Falha de I/O no arquivo de log não deve derrubar a requisição. }
     end;
   finally
     FLock.Release;

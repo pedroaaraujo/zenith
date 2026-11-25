@@ -17,6 +17,10 @@ uses
 
 const
   ReadBufLen = 4096;
+  { Limites padrão de leitura (sobrescrevíveis por propriedade ou variável de ambiente) }
+  ZENITH_DEFAULT_MAX_BODY_SIZE = 10 * 1024 * 1024;   // ZENITH_MAX_BODY_SIZE (bytes)
+  ZENITH_DEFAULT_MAX_HEADER_SIZE = 64 * 1024;        // ZENITH_MAX_HEADER_SIZE (bytes)
+  ZENITH_DEFAULT_READ_TIMEOUT_MS = 30000;            // ZENITH_READ_TIMEOUT_MS
 
 type
   TFPHTTPConnection = class;
@@ -56,6 +60,10 @@ type
     FServer: TFPCustomHTTPServer;
     FSocket: TSocketStream;
     FBuffer: Ansistring;
+    FHeaderBytes: Int64;
+    FHeaderDeadline: QWord;
+    procedure CheckHeaderLimits;
+    procedure SendRawError(ACode: Integer; const AReason: string);
     procedure InterPretHeader(ARequest: TFPHTTPConnectionRequest; const AHeader: String);
     function ReadString: String;
     function GetLookupHostNames: Boolean;
@@ -126,6 +134,9 @@ type
     FUseThreadPool: Boolean;
     FThreadPoolSize: Integer;
     FThreadPoolQueueLimit: Integer;
+    FMaxRequestBodySize: Int64;
+    FMaxHeaderSize: Int64;
+    FReadTimeout: Integer;
 
     procedure DoCreateClientHandler(Sender: TObject; out AHandler: TSocketHandler);
     function GetActive: Boolean;
@@ -193,6 +204,12 @@ type
     property UseThreadPool: Boolean read FUseThreadPool write SetUseThreadPool default True;
     property ThreadPoolSize: Integer read FThreadPoolSize write SetThreadPoolSize;
     property ThreadPoolQueueLimit: Integer read FThreadPoolQueueLimit write SetThreadPoolQueueLimit;
+    // Tamanho máximo do corpo aceito (Content-Length). Acima disso responde 413.
+    property MaxRequestBodySize: Int64 read FMaxRequestBodySize write FMaxRequestBodySize;
+    // Tamanho máximo somado da linha inicial e dos headers. Acima disso responde 431.
+    property MaxHeaderSize: Int64 read FMaxHeaderSize write FMaxHeaderSize;
+    // Timeout (ms) de cada leitura e prazo total para receber os headers. 0 desativa.
+    property ReadTimeout: Integer read FReadTimeout write FReadTimeout;
   protected
     // Set to true to start listening.
     property Active: Boolean read GetActive write SetActive default False;
@@ -396,6 +413,7 @@ begin
   repeat
     if Length(FBuffer) = 0 then
       FillBuffer;
+    CheckHeaderLimits;
     if Length(FBuffer) = 0 then
       Done := True
     else if CheckLF then
@@ -420,16 +438,44 @@ begin
           Result := Result + Copy(FBuffer, 1, L - 1)
         else
           Result := Result + FBuffer;
+        Inc(FHeaderBytes, L);
         FBuffer := '';
       end
       else
       begin
         Result := Result + Copy(FBuffer, 1, P - 1);
         Delete(FBuffer, 1, P + 1);
+        Inc(FHeaderBytes, P + 1);
         Done := True;
       end;
     end;
   until Done;
+end;
+
+procedure TFPHTTPConnection.CheckHeaderLimits;
+begin
+  if (FServer = nil) then
+    Exit;
+  if (FServer.MaxHeaderSize > 0) and (FHeaderBytes > FServer.MaxHeaderSize) then
+    raise EHTTPServer.CreateHelp('Request header fields too large', 431);
+  if (FHeaderDeadline > 0) and (GetTickCount64 > FHeaderDeadline) then
+    raise EHTTPServer.CreateHelp('Request header timeout', 408);
+end;
+
+procedure TFPHTTPConnection.SendRawError(ACode: Integer; const AReason: string);
+var
+  S: AnsiString;
+begin
+  if FSocket = nil then
+    Exit;
+  S := 'HTTP/1.1 ' + IntToStr(ACode) + ' ' + AReason + #13#10 +
+       'Content-Length: 0'#13#10 +
+       'Connection: close'#13#10#13#10;
+  try
+    FSocket.WriteBuffer(S[1], Length(S));
+  except
+    { O cliente pode ter fechado a conexão; nada a fazer. }
+  end;
 end;
 
 procedure TFPHTTPConnection.UnknownHeader(ARequest: TFPHTTPConnectionRequest; const AHeader: String);
@@ -515,13 +561,23 @@ var
 begin
   S := '';
   L := ARequest.ContentLength;
+  if (L < 0) then
+    raise EHTTPServer.CreateHelp('Invalid Content-Length', 400);
+  if Assigned(FServer) and (FServer.MaxRequestBodySize > 0) and
+     (Int64(L) > FServer.MaxRequestBodySize) then
+    raise EHTTPServer.CreateHelp('Payload too large', 413);
   if (L > 0) then
   begin
     SetLength(S, L);
     P := Length(FBuffer);
+    { Bytes já lidos além do corpo (cliente enviou mais que o Content-Length)
+      não podem ser copiados para S: limitar a cópia evita escrita fora do buffer. }
+    if P > L then
+      P := L;
     if (P > 0) then
     begin
       Move(FBuffer[1], S[1], P);
+      Delete(FBuffer, 1, P);
       L := L - P;
     end;
     P := P + 1;
@@ -549,6 +605,11 @@ begin
   try
     Server.InitRequest(Result);
     Result.FConnection := Self;
+    FHeaderBytes := 0;
+    if Server.ReadTimeout > 0 then
+      FHeaderDeadline := GetTickCount64 + QWord(Server.ReadTimeout)
+    else
+      FHeaderDeadline := 0;
     StartLine := ReadString;
     ParseStartLine(Result, StartLine);
     repeat
@@ -601,11 +662,18 @@ var
 begin
   try
     SetupSocket;
+    if Assigned(FServer) and (FServer.ReadTimeout > 0) then
+      FSocket.IOTimeout := FServer.ReadTimeout;
     Req := ReadRequestHeaders;
     try
       Req.ServerPort := Server.Port;
-      if Req.ContentLength > 0 then
+      if Req.ContentLength <> 0 then
         ReadRequestContent(Req);
+      FHeaderDeadline := 0;
+      { Handlers (SSE/WebSocket) podem manter o socket aberto por tempo
+        indeterminado: o timeout vale apenas para a leitura da requisição. }
+      if FSocket.IOTimeout <> 0 then
+        FSocket.IOTimeout := 0;
       Req.InitRequestVars;
       Resp := Server.CreateResponse(Req);
       try
@@ -623,7 +691,11 @@ begin
     end;
   except
     on E: Exception do
+    begin
+      if (E is EHTTPServer) and (E.HelpContext >= 400) and (E.HelpContext <= 599) then
+        SendRawError(E.HelpContext, E.Message);
       HandleRequestError(E);
+    end;
   end;
 end;
 
@@ -962,6 +1034,9 @@ begin
   FThreadPoolSize := 0; // Auto-detect baseado em cores CPU
   FThreadPoolQueueLimit := 65536;
   FThreadPool := nil;
+  FMaxRequestBodySize := StrToInt64Def(GetEnvironmentVariable('ZENITH_MAX_BODY_SIZE'), ZENITH_DEFAULT_MAX_BODY_SIZE);
+  FMaxHeaderSize := StrToInt64Def(GetEnvironmentVariable('ZENITH_MAX_HEADER_SIZE'), ZENITH_DEFAULT_MAX_HEADER_SIZE);
+  FReadTimeout := StrToIntDef(GetEnvironmentVariable('ZENITH_READ_TIMEOUT_MS'), ZENITH_DEFAULT_READ_TIMEOUT_MS);
 end;
 
 procedure TFPCustomHttpServer.WaitForRequests(MaxAttempts: Integer);

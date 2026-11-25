@@ -24,7 +24,4 @@ begin
     .Register;
 end;
 
-initialization
-  TTodoRouter.Register;
-
 end.

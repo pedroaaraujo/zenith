@@ -16,7 +16,7 @@ interface
 
 uses
   Classes, SysUtils, StrUtils, SyncObjs, sha1, base64, HTTPDefs,
-  fphttpserver,
+  fphttpserver, Zenith.Env,
   DeltaModel,
   DeltaModel.Codec.Cbor,
   DeltaModel.Codec.Bson,
@@ -104,6 +104,11 @@ type
     class function GetRequestHeaderCI(ARequest: TRequest; const AName: string): string; static;
   public
     class function ComputeAcceptKey(const ASecWebSocketKey: string): string; static;
+    { Proteção contra Cross-Site WebSocket Hijacking. Sem header Origin
+      (clientes não-navegador) aceita; com Origin, aceita se for a mesma
+      origem do Host ou estiver em ZENITH_WS_ALLOWED_ORIGINS (lista separada
+      por vírgula; "*" libera qualquer origem). }
+    class function IsOriginAllowed(ARequest: TRequest): Boolean; static;
     class function ValidateRequest(
       ARequest: TRequest;
       out AAcceptKey: string;
@@ -518,6 +523,33 @@ begin
   Result := EncodeStringBase64(string(DigestStr));
 end;
 
+class function TZWebSocketHandshake.IsOriginAllowed(ARequest: TRequest): Boolean;
+var
+  Origin, HostHdr, OriginHost, Allowed, Item: string;
+  P: SizeInt;
+begin
+  Origin := Trim(GetRequestHeaderCI(ARequest, 'Origin'));
+  if Origin = '' then
+    Exit(True);
+  Origin := Origin.TrimRight(['/']);
+
+  Allowed := Trim(GetEnvVariable('ZENITH_WS_ALLOWED_ORIGINS', ''));
+  if Allowed <> '' then
+    for Item in Allowed.Split([',']) do
+      if (Trim(Item) = '*') or SameText(Trim(Item).TrimRight(['/']), Origin) then
+        Exit(True);
+
+  HostHdr := Trim(ARequest.Host);
+  if HostHdr = '' then
+    HostHdr := Trim(GetRequestHeaderCI(ARequest, 'Host'));
+  P := Pos('://', Origin);
+  if P > 0 then
+    OriginHost := Copy(Origin, P + 3, MaxInt)
+  else
+    OriginHost := Origin;
+  Result := (HostHdr <> '') and SameText(OriginHost, HostHdr);
+end;
+
 class function TZWebSocketHandshake.ValidateRequest(
   ARequest: TRequest;
   out AAcceptKey: string;
@@ -555,6 +587,8 @@ begin
   if VersionHdr <> WS_VERSION then
     Exit;
   if KeyHdr = '' then
+    Exit;
+  if not IsOriginAllowed(ARequest) then
     Exit;
 
   // RFC 6455 Section 4.1: Sec-WebSocket-Key must be a base64-encoded 16-byte nonce
