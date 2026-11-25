@@ -11,7 +11,7 @@ uses
   swagger4laz,
   Zenith.App, Zenith.Consts, Zenith.Exceptions, Zenith.Messages,
   Zenith.Security, Zenith.Crud.Interceptor,
-  DeltaModel, DeltaModel.Metadata, DeltaModel.ORM.Pool, DeltaModel.ORM.DML, DeltaModel.Generics;
+  DeltaModel, DeltaModel.Fields, DeltaModel.Metadata, DeltaModel.ORM.Pool, DeltaModel.ORM.DML, DeltaModel.Generics;
 
 type
   { Modern Fluent REST CRUD Controller and Auto-Router for Zenith }
@@ -74,6 +74,9 @@ function ZenithSanitizeSort(const ARawSort: string; AMeta: TModelMetadata): stri
 
 { Limite máximo de itens por página (ZENITH_CRUD_MAX_PAGE_SIZE, padrão 100). }
 function ZenithCrudMaxPageSize: Integer;
+
+{ Repõe o valor do PK (primitivo ou TDeltaField) após copiar o corpo da requisição. }
+procedure ZenithRestorePrimaryKey(AModel: TObject; AMeta: TModelMetadata; AId: Int64);
 
 implementation
 
@@ -347,6 +350,29 @@ begin
   FInstance.DoDeleteItem(ARequest, AResponse);
 end;
 
+{ Repõe o PK após copiar o corpo da requisição sobre o registro existente.
+  PK pode ser primitivo (Integer/Int64) ou um TDeltaField (TDFIntRequired etc.):
+  SetOrdProp em propriedade de classe sobrescreveria o ponteiro do objeto. }
+procedure ZenithRestorePrimaryKey(AModel: TObject; AMeta: TModelMetadata; AId: Int64);
+var
+  PropInfo: PPropInfo;
+  PropObj: TObject;
+begin
+  if (AMeta = nil) or AMeta.PKPropName.IsEmpty then
+    Exit;
+  PropInfo := GetPropInfo(AModel, AMeta.PKPropName);
+  if PropInfo = nil then
+    Exit;
+  if PropInfo^.PropType^.Kind = tkClass then
+  begin
+    PropObj := GetObjectProp(AModel, PropInfo);
+    if PropObj is TDeltaField then
+      TDeltaField(PropObj).Value := AId;
+  end
+  else if PropInfo^.PropType^.Kind in [tkInteger, tkInt64, tkQWord] then
+    SetOrdProp(AModel, PropInfo, AId);
+end;
+
 function TZenithCrud<T>.SanitizeSort(const ARawSort: string): string;
 begin
   Result := ZenithSanitizeSort(ARawSort, TRTTICache.GetModelMetadata(T));
@@ -499,6 +525,10 @@ begin
         AResponse.Content := Item.ToJson;
 
         ExecuteAfterInsert(SecCtx, ARequest, Item, AResponse);
+        { O pool faz rollback de transações pendentes ao devolver a conexão:
+          sem commit explícito a escrita seria descartada. Falhas antes deste
+          ponto (inclusive nos interceptors After*) desfazem a operação. }
+        Lease.Commit;
       finally
         Query.Free;
       end;
@@ -553,9 +583,11 @@ begin
 
           InputItem.Validate;
 
+          { O corpo normalmente omite o id: repô-lo antes da cópia evita
+            atribuir NULL a um PK obrigatório (TDFIntRequired) e impede que o
+            cliente troque o PK pelo corpo da requisição. }
+          ZenithRestorePrimaryKey(InputItem, Meta, IdVal);
           CopyObject(InputItem, ExistingItem);
-          if not Meta.PKPropName.IsEmpty then
-            SetOrdProp(ExistingItem, Meta.PKPropName, IdVal);
 
           if not Query.Update(ExistingItem) then
             raise EServerError.Create(MsgCrudCouldNotUpdate);
@@ -565,6 +597,10 @@ begin
           AResponse.Content := ExistingItem.ToJson;
 
           ExecuteAfterUpdate(SecCtx, ARequest, ExistingItem, AResponse);
+          { O pool faz rollback de transações pendentes ao devolver a conexão:
+            sem commit explícito a escrita seria descartada. Falhas antes deste
+            ponto (inclusive nos interceptors After*) desfazem a operação. }
+          Lease.Commit;
         finally
           InputItem.Free;
         end;
@@ -617,6 +653,10 @@ begin
         AResponse.Code := StatusNoContent;
 
         ExecuteAfterDelete(SecCtx, ARequest, IdVal, AResponse);
+        { O pool faz rollback de transações pendentes ao devolver a conexão:
+          sem commit explícito a escrita seria descartada. Falhas antes deste
+          ponto (inclusive nos interceptors After*) desfazem a operação. }
+        Lease.Commit;
       finally
         ExistingItem.Free;
       end;
