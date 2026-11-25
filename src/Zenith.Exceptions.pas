@@ -171,24 +171,64 @@ type
   { Backward Compatibility Layer (preserves legacy exception signatures)      }
   { ========================================================================= }
   HTTPException = class(EZenithException)
+  protected
+    class function DefaultStatusCode: Integer; virtual;
   public
     constructor Create(const AMsg: string);
     constructor CreateFmt(const AFormat: string; const AArgs: array of const);
   end;
 
   EValidation = class(HTTPException);
-  EConflict = class(HTTPException);
+
+  EConflict = class(HTTPException)
+  protected
+    class function DefaultStatusCode: Integer; override;
+  end;
+
   EMissingRequiredField = class(HTTPException);
-  EUnknownError = class(HTTPException);
+
+  EUnknownError = class(HTTPException)
+  protected
+    class function DefaultStatusCode: Integer; override;
+  end;
   EUnknowError = EUnknownError; { Legacy backward compatibility alias }
-  EUnauthorized = class(HTTPException);
-  EForbidden = class(HTTPException);
-  EResourceNotFound = class(HTTPException);
-  ETooManyRequests = class(HTTPException);
-  EServerError = class(HTTPException);
+
+  EUnauthorized = class(HTTPException)
+  protected
+    class function DefaultStatusCode: Integer; override;
+  end;
+
+  EForbidden = class(HTTPException)
+  protected
+    class function DefaultStatusCode: Integer; override;
+  end;
+
+  EResourceNotFound = class(HTTPException)
+  protected
+    class function DefaultStatusCode: Integer; override;
+  end;
+
+  ETooManyRequests = class(HTTPException)
+  protected
+    class function DefaultStatusCode: Integer; override;
+  end;
+
+  EServerError = class(HTTPException)
+  protected
+    class function DefaultStatusCode: Integer; override;
+  end;
+
   EBadRequest = class(HTTPException);
-  ENotFound = class(HTTPException);
-  EUnprocessableEntity = class(HTTPException);
+
+  ENotFound = class(HTTPException)
+  protected
+    class function DefaultStatusCode: Integer; override;
+  end;
+
+  EUnprocessableEntity = class(HTTPException)
+  protected
+    class function DefaultStatusCode: Integer; override;
+  end;
 
 { Helper for ergonomic construction of TZenithFieldError }
 function MakeZenithFieldError(const AField, AMessage: string;
@@ -698,15 +738,65 @@ end;
 { HTTPException (Backward Compatibility)                                      }
 { =========================================================================== }
 
+class function HTTPException.DefaultStatusCode: Integer;
+begin
+  Result := HTTP_STATUS_BAD_REQUEST;
+end;
+
 constructor HTTPException.Create(const AMsg: string);
 begin
-  inherited Create(AMsg, HTTP_STATUS_BAD_REQUEST);
+  inherited Create(AMsg, DefaultStatusCode);
 end;
 
 constructor HTTPException.CreateFmt(const AFormat: string;
   const AArgs: array of const);
 begin
-  inherited Create(Format(AFormat, AArgs), HTTP_STATUS_BAD_REQUEST);
+  inherited Create(Format(AFormat, AArgs), DefaultStatusCode);
+end;
+
+class function EConflict.DefaultStatusCode: Integer;
+begin
+  Result := HTTP_STATUS_CONFLICT;
+end;
+
+class function EUnknownError.DefaultStatusCode: Integer;
+begin
+  Result := HTTP_STATUS_INTERNAL_SERVER_ERROR;
+end;
+
+class function EUnauthorized.DefaultStatusCode: Integer;
+begin
+  Result := HTTP_STATUS_UNAUTHORIZED;
+end;
+
+class function EForbidden.DefaultStatusCode: Integer;
+begin
+  Result := HTTP_STATUS_FORBIDDEN;
+end;
+
+class function EResourceNotFound.DefaultStatusCode: Integer;
+begin
+  Result := HTTP_STATUS_NOT_FOUND;
+end;
+
+class function ETooManyRequests.DefaultStatusCode: Integer;
+begin
+  Result := HTTP_STATUS_TOO_MANY_REQUESTS;
+end;
+
+class function EServerError.DefaultStatusCode: Integer;
+begin
+  Result := HTTP_STATUS_INTERNAL_SERVER_ERROR;
+end;
+
+class function ENotFound.DefaultStatusCode: Integer;
+begin
+  Result := HTTP_STATUS_NOT_FOUND;
+end;
+
+class function EUnprocessableEntity.DefaultStatusCode: Integer;
+begin
+  Result := HTTP_STATUS_UNPROCESSABLE_ENTITY;
 end;
 
 end.
