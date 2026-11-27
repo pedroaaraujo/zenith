@@ -1311,6 +1311,7 @@ begin
          (CTBase = 'application/xml') or
          (CTBase = 'text/xml') or
          (CTBase = 'text/csv') or
+         (CTBase = 'text/plain') or
          (CTBase = 'application/csv') or
          (CTBase = 'application/x-www-form-urlencoded') or
          (CTBase = 'multipart/form-data') or
@@ -1320,7 +1321,7 @@ begin
       begin
         AResponse.Code := 400;
         AResponse.ContentType := 'application/problem+json; charset=utf-8';
-        AResponse.Content := '{"type":"urn:zenith:problem:unsupported-media-type","title":"Bad Request","status":400,"detail":"Content-Type não suportado. Formatos aceitos: application/json, application/cbor, application/bson, application/xml, text/csv, application/x-www-form-urlencoded, multipart/form-data."}';
+        AResponse.Content := '{"type":"urn:zenith:problem:unsupported-media-type","title":"Bad Request","status":400,"detail":"Content-Type não suportado. Formatos aceitos: application/json, application/cbor, application/bson, application/xml, text/csv, text/plain, application/x-www-form-urlencoded, multipart/form-data."}';
         AResponse.SendContent;
         Exit;
       end;
